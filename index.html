@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V17.6</title>
+  <title>AR 空間雙機連線羅盤 V17.7 (絕對流暢版)</title>
   
-  <script src="https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-three.prod.js" onerror="document.getElementById('init-btn').innerText='🚨 網路阻擋：引擎下載失敗'; document.getElementById('init-btn').style.background='#7f1d1d';"></script>
+  <script src="./mindar-image-three.prod.js" onerror="document.getElementById('init-btn').innerText='🚨 檔案缺失：未找到 mindar...prod.js'; document.getElementById('init-btn').style.background='#7f1d1d';"></script>
+  
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
   <style>
     body { margin: 0; overflow: hidden; background-color: #000 !important; font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-    #init-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 36px; background: #111827; border: 2px solid #4b5563; color: #9ca3af; font-size: 18px; font-weight: bold; letter-spacing: 3px; border-radius: 10px; cursor: not-allowed; z-index: 9999; box-shadow: 0 0 15px rgba(0,0,0,0.5); display: block; pointer-events: auto; transition: all 0.3s ease; text-align: center; line-height: 1.5; }
+    #init-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 36px; background: #022c22; border: 2px solid #34d399; color: #34d399; font-size: 18px; font-weight: bold; letter-spacing: 3px; border-radius: 10px; cursor: pointer; z-index: 9999; box-shadow: 0 0 25px rgba(52, 211, 153, 0.6); display: block; pointer-events: auto; text-align: center; line-height: 1.5; }
     #container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 120px; height: 120px; z-index: 200; pointer-events: auto; }
@@ -29,7 +30,7 @@
 </head>
 <body>
 
-  <button id="init-btn">核心模組加載中...<br><span style="font-size: 12px; color: #6b7280;">(若超過10秒請檢查網路)</span></button>
+  <button id="init-btn">啟動魔法連線</button>
   <div id="container"></div>
   
   <div id="overlay">
@@ -43,7 +44,6 @@
   <script>
     const initBtn = document.getElementById('init-btn');
     const statusText = document.getElementById('status-text');
-    let loadCheckCount = 0;
 
     function showFatalError(msg) {
       statusText.style.display = 'block';
@@ -53,28 +53,8 @@
     window.addEventListener('error', (e) => showFatalError(e.message));
     window.addEventListener('unhandledrejection', (e) => showFatalError(e.reason ? e.reason.message : e.reason));
 
-    // 【關鍵修改 2】增加超時自動放棄機制，避免死當
-    function checkEngineReady() {
-      if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.MindARThree) {
-        initBtn.innerHTML = "啟動魔法連線";
-        initBtn.style.background = "#022c22";
-        initBtn.style.border = "2px solid #34d399";
-        initBtn.style.color = "#34d399";
-        initBtn.style.cursor = "pointer";
-        initBtn.style.boxShadow = "0 0 25px rgba(52, 211, 153, 0.6)";
-        initBtn.addEventListener('click', startAR);
-      } else {
-        loadCheckCount++;
-        if (loadCheckCount > 33) { // 約 10 秒
-          initBtn.innerHTML = "🚨 系統超時<br><span style='font-size: 14px;'>無法獲取引擎，請重整網頁</span>";
-          initBtn.style.background = "#7f1d1d";
-          initBtn.style.color = "#fff";
-        } else {
-          setTimeout(checkEngineReady, 300);
-        }
-      }
-    }
-    window.addEventListener('DOMContentLoaded', checkEngineReady);
+    // 【核心修改 3】不再輪詢超時，直接綁定按鈕點擊
+    initBtn.addEventListener('click', startAR);
 
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
@@ -87,6 +67,13 @@
     let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0, hasSweptOnce = false; 
 
     async function startAR() {
+      // 點擊後安全檢查：MindAR 是否已正確載入
+      if (!window.MINDAR || !window.MINDAR.IMAGE) {
+        initBtn.innerHTML = "🚨 引擎載入失敗<br><span style='font-size: 14px;'>請重整網頁或檢查檔案位置</span>";
+        initBtn.style.background = "#7f1d1d";
+        return;
+      }
+
       initBtn.disabled = true;
       initBtn.innerText = "【1/3】請求相機中...";
       initBtn.style.background = "#b45309"; 
@@ -99,18 +86,19 @@
         document.body.style.backgroundColor = 'transparent';
         statusText.style.display = 'block'; 
         crosshair.style.display = 'block'; 
-        statusText.innerText = "【2/3】正在下載 targets.mind 並編譯...";
+        statusText.innerText = "【2/3】相機已啟動，正在下載 targets.mind 並編譯...";
         
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
 
-        // 【關鍵提醒】這裡會去抓 targets.mind 檔案
+        // 【關鍵提醒 1】程式將從本機抓 targets.mind 辨識檔 (絕對要確保全小寫，放在同目錄)
         mindartThree = new window.MINDAR.IMAGE.MindARThree({
           container: document.getElementById('container'),
-          imageTargetSrc: 'targets.mind', 
+          imageTargetSrc: './targets.mind', // 強制使用本機路徑
           maxTrack: 1
         });
 
+        // 【核心修改 4】直接調用 MindAR 的內建 THREE，完全本地載入
         THREE = window.MINDAR.IMAGE.THREE;
         renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
@@ -186,7 +174,7 @@
           renderer.render(scene, camera);
         });
       } catch (err) {
-        showFatalError("系統卡關: " + err.message + "。請確認網址列旁邊沒有相機被封鎖的圖示。");
+        showFatalError("系統卡關: " + err.message + "。請確認檔案放置正確且名稱全小寫。");
       }
     }
   </script>
