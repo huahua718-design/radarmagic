@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V24.0 (視覺巨化版)</title>
+  <title>AR 空間雙機連線羅盤 V25.0 (透視X光版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -45,30 +45,15 @@
     const circleBtn = document.getElementById('circle-btn');
 
     function showFatalError(msg) {
-      statusText.style.display = 'block';
-      statusText.innerText = "【系統異常】： " + msg;
-      statusText.style.background = "rgba(239, 68, 68, 0.7)";
-      statusText.style.color = "#fff";
+      statusText.style.display = 'block'; statusText.innerText = "【系統異常】： " + msg;
+      statusText.style.background = "rgba(239, 68, 68, 0.7)"; statusText.style.color = "#fff";
     }
     
-    window.addEventListener('error', (e) => {
-      if (e.message && (e.message.includes("Script error") || e.message === "Script error.")) return;
-      showFatalError(e.message);
-    });
-    window.addEventListener('unhandledrejection', (e) => {
-      const msg = e.reason ? e.reason.message : e.reason;
-      if (msg && (msg.includes("Script error") || msg === "Script error.")) return;
-      showFatalError(msg);
-    });
+    window.addEventListener('error', (e) => { if (e.message && (e.message.includes("Script error") || e.message === "Script error.")) return; showFatalError(e.message); });
+    window.addEventListener('unhandledrejection', (e) => { const msg = e.reason ? e.reason.message : e.reason; if (msg && (msg.includes("Script error") || msg === "Script error.")) return; showFatalError(msg); });
 
-    const threeCdnList = [
-      "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js",
-      "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"
-    ];
-    const mindArCdnList = [
-      "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js",
-      "https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-three.prod.js"
-    ];
+    const threeCdnList = [ "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js", "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js" ];
+    const mindArCdnList = [ "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js", "https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-three.prod.js" ];
 
     let threeIndex = 0, mindArIndex = 0;
 
@@ -104,31 +89,20 @@
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
 
-    if (myRole === 'magician') {
-      db.set({ status: "ready", x: 0, y: 0, z: 0 });
-    }
+    if (myRole === 'magician') { db.set({ status: "ready", x: 0, y: 0, z: 0 }); }
 
-    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat;
+    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat, invisiblePlane;
     let isTargetTracked = false, appState = 0, isPressing = false, pressStartTime = 0;
-    let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0, hasSweptOnce = false; 
+    let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0; 
     let isDataSynced = false; 
 
     function refreshAudienceUI() {
       if (myRole !== 'audience') return;
       if (isTargetTracked) {
         if (isDataSynced) {
-          if (appState === 0) {
-            statusText.innerText = "空間特徵吻合，SCAN 系統就緒";
-            circleBtn.style.display = 'flex';
-          }
-        } else {
-          statusText.innerText = "空間特徵吻合，等待魔術師鎖定空間座標... ";
-          circleBtn.style.display = 'none';
-        }
-      } else {
-        statusText.innerText = "請將 Bicycle 牌盒保持在畫面中...";
-        circleBtn.style.display = 'none';
-      }
+          if (appState === 0) { statusText.innerText = "空間特徵吻合，SCAN 系統就緒"; circleBtn.style.display = 'flex'; }
+        } else { statusText.innerText = "空間特徵吻合，等待魔術師鎖定空間座標... "; circleBtn.style.display = 'none'; }
+      } else { statusText.innerText = "請將 Bicycle 牌盒保持在畫面中..."; circleBtn.style.display = 'none'; }
     }
 
     async function startAR() {
@@ -139,73 +113,71 @@
         initBtn.style.display = 'none'; document.body.style.backgroundColor = 'transparent';
         statusText.style.display = 'block'; document.getElementById('crosshair').style.display = 'block';
         statusText.innerText = "通道安全建立中...";
-        
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
 
-        mindartThree = new window.MINDAR.IMAGE.MindARThree({
-          container: document.getElementById('container'),
-          imageTargetSrc: 'targets.mind', maxTrack: 1
-        });
-
-        THREE = window.THREE;
-        renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
+        mindartThree = new window.MINDAR.IMAGE.MindARThree({ container: document.getElementById('container'), imageTargetSrc: 'targets.mind', maxTrack: 1 });
+        THREE = window.THREE; renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
+
+        // 🌟 核心修正一：加入「隱形實體碰撞板」，寬度為牌盒的 20 倍，確保必定擊中！
+        invisiblePlane = new THREE.Mesh(
+          new THREE.PlaneGeometry(20, 20), 
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        anchorGroup.group.add(invisiblePlane); // 綁在牌盒原點
+
         targetMarker = new THREE.Group();
 
-        // 🟢 【V24 修復】大幅度巨化錨點尺寸！ (將 0.006 放大約 10倍 到 0.05)
-        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.5 }); 
+        // 🌟 核心修正二：加入 depthTest: false (X光穿透模式)，無論在哪都會顯示在最上層！
+        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.2, depthTest: false }); 
         targetMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 32, 32), dotMat));
         
-        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthTest: false });
         targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.08, 0.12, 64), ringMat));
 
-        targetMarker.position.set(0, 0, 0); targetMarker.visible = false; 
+        targetMarker.position.set(0, 0, 0); 
+        targetMarker.visible = false; // 初始隱藏，直到收到座標
         anchorGroup.group.add(targetMarker);
 
         anchorGroup.onTargetFound = () => { 
           isTargetTracked = true; 
-          if (myRole === 'magician') {
-            statusText.innerText = "【準心鎖定模式】請將螢幕準心對準目標，點擊右下角確認"; 
-          } else { refreshAudienceUI(); } 
+          if (myRole === 'magician') statusText.innerText = "【準心鎖定模式】請將螢幕準心對準目標，點擊右下角確認"; 
+          else refreshAudienceUI(); 
         };
         
         anchorGroup.onTargetLost = () => { 
           isTargetTracked = false; 
-          if (myRole === 'magician') {
-            statusText.innerText = "請確保 Bicycle 牌盒在畫面中..."; 
-          } else { refreshAudienceUI(); } 
+          if (myRole === 'magician') statusText.innerText = "請確保 Bicycle 牌盒在畫面中..."; 
+          else refreshAudienceUI(); 
         };
 
-        // 魔術師發射端
+        // 魔術師發射端 (使用隱形畫布實體射線)
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
           
           if (isTargetTracked) {
             scene.updateMatrixWorld(true);
-
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-            // 基準依然是牌盒，計算一張與牌盒等高的虛擬桌面網格
-            const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
-            const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
-            const targetPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
-
-            const intersectPoint = new THREE.Vector3();
-            if (raycaster.ray.intersectPlane(targetPlane, intersectPoint)) {
-              const localPos = anchorGroup.group.worldToLocal(intersectPoint);
-              
-              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
+            // 直接射擊隱形碰撞板
+            const intersects = raycaster.intersectObject(invisiblePlane);
+            
+            if (intersects.length > 0) {
+              const localPos = anchorGroup.group.worldToLocal(intersects[0].point);
+              // 🌟 核心修正三：Z軸強制 +0.02 浮空，避免緊貼牌面
+              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: 0.02 }); 
               
               statusText.innerText = "🔒 【密】準心目標錨點已成功鎖定！";
               statusText.style.background = "rgba(52, 211, 153, 0.95)"; statusText.style.color = "#022c22"; statusText.style.fontWeight = "bold";
             } else {
-              const fallbackWorld = new THREE.Vector3(0, 0, -0.15).applyMatrix4(camera.matrixWorld);
+              // 備用防呆方案
+              const fallbackWorld = new THREE.Vector3(0, 0, -0.2).applyMatrix4(camera.matrixWorld);
               const localPos = anchorGroup.group.worldToLocal(fallbackWorld);
-              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z });
-              statusText.innerText = "🔒 【密】相對錨點已強制設定！";
+              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: 0.02 });
+              statusText.innerText = "🔒 【密】相對錨點已強制設定！(未擊中平面)";
             }
             
             setTimeout(() => {
@@ -229,12 +201,13 @@
             const data = snapshot.val(); 
             if (data && data.status === "locked" && typeof data.x === 'number') {
               targetMarker.position.set(data.x, data.y, data.z);
+              targetMarker.visible = true; // 🌟 收到座標後，直接進入待機微光模式
+              targetMarker.scale.set(0.6, 0.6, 0.6);
+              dotMat.opacity = 0.2; ringMat.opacity = 0.0;
               isDataSynced = true;
             } else {
-              isDataSynced = false;
-              appState = 0;
+              isDataSynced = false; appState = 0; targetMarker.visible = false;
               document.getElementById('radar-sweep').style.opacity = '0';
-              hasSweptOnce = false;
             } 
             refreshAudienceUI();
           });
@@ -261,7 +234,7 @@
               if (progress >= 1.0) {
                 isPressing = false; appState = 2; circleBtn.style.display = 'none';
                 statusText.innerText = "RADAR SCANNING SPATIAL ANOMALY...";
-                radarSweep.style.opacity = '1'; targetMarker.visible = false; hasSweptOnce = false;
+                radarSweep.style.opacity = '1';
                 if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
               }
             }
@@ -278,6 +251,7 @@
               
               const localToCam = targetWorldPos.clone().applyMatrix4(camInverse);
               
+              // 在相機前方才進行角度判定
               if (localToCam.z < 0) { 
                 const vector = targetWorldPos.clone().project(camera);
                 
@@ -286,27 +260,31 @@
                 let angleDiff = Math.abs(radarAngle - targetAngle); 
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
                 
-                // 🟢 【V24 修復】放寬雷達觸發角度限制 (從 0.22 放到 0.4)，確保比較容易掃描到
+                // 雷達掃過觸發
                 if (angleDiff < 0.4 && !isFlashing && (timestamp - lastFlashTriggerTime > 1800)) {
-                  isFlashing = true; hasSweptOnce = true; flashStartTime = timestamp; lastFlashTriggerTime = timestamp;
+                  isFlashing = true; flashStartTime = timestamp; lastFlashTriggerTime = timestamp;
                   if(navigator.vibrate) navigator.vibrate([60, 120]);
                 }
               }
               
+              // 動畫控制
               if (isFlashing) {
-                targetMarker.visible = true; let phase = Math.floor((timestamp - flashStartTime) / 120);
-                if (phase === 0 || phase === 2) { targetMarker.scale.set(1.5, 1.5, 1.5); dotMat.opacity = 1.0; ringMat.opacity = 1.0; } 
-                else if (phase === 1 || phase === 3) { targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.5; ringMat.opacity = 0.3; } 
-                else isFlashing = false; 
-              } else if (hasSweptOnce) { 
-                targetMarker.visible = true; targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.5; ringMat.opacity = 0.3; 
-              } else {
-                targetMarker.visible = false;
+                let phase = Math.floor((timestamp - flashStartTime) / 120);
+                if (phase === 0 || phase === 2) { 
+                  targetMarker.scale.set(1.5, 1.5, 1.5); dotMat.opacity = 1.0; ringMat.opacity = 1.0; 
+                } else if (phase === 1 || phase === 3) { 
+                  targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.8; ringMat.opacity = 0.5; 
+                } else { 
+                  isFlashing = false; 
+                } 
+              } else { 
+                // 掃描中但未被雷達擊中時，保持微光狀態 (防走丟設計)
+                targetMarker.scale.set(0.6, 0.6, 0.6); dotMat.opacity = 0.2; ringMat.opacity = 0.0; 
               }
             }
             renderer.render(scene, camera);
           } catch (renderError) {
-            console.warn("內部渲染已防禦: ", renderError.message);
+            console.warn("內部渲染防禦: ", renderError.message);
           }
         });
       } catch (err) { showFatalError("AR啟動中斷: " + err.message); }
