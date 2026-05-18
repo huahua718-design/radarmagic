@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V18.0 (雙核心護航版)</title>
+  <title>AR 空間雙機連線羅盤 V19.0 (全域相容終極版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -45,47 +45,43 @@
 
     function showFatalError(msg) {
       statusText.style.display = 'block';
-      statusText.innerText = "【錯誤】: " + msg;
+      statusText.innerText = "【系統出錯】： " + msg;
       statusText.style.color = "#ef4444";
     }
     
-    window.addEventListener('error', (e) => {
-      // 忽略無關緊要的跨網域Script警告，專注捕捉系統核心異常
-      if (e.message.includes("Script error.")) return; 
-      showFatalError(e.message);
-    });
+    // 全域錯誤捕捉器
+    window.addEventListener('error', (e) => showFatalError(e.message));
     window.addEventListener('unhandledrejection', (e) => showFatalError(e.reason ? e.reason.message : e.reason));
 
-    // 【雙核心 CDN 多重守護線路】
+    // 【雙核心驅動 - 採用完美支援傳統語法的 1.1.5 全域相容版本】
     const threeCdnList = [
       "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js",
       "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"
     ];
     const mindArCdnList = [
-      "https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-three.prod.js",
-      "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+      "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js",
+      "https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-three.prod.js"
     ];
 
     let threeIndex = 0;
     let mindArIndex = 0;
 
-    // 第一步：先加載 3D 渲染核心 Three.js
+    // 階段一：精準掛載 3D 渲染引擎
     function loadThreeEngine() {
       if (threeIndex >= threeCdnList.length) {
-        initBtn.innerHTML = "🚨 3D核心載入失敗，請重新整理網頁";
+        initBtn.innerHTML = "🚨 3D核心載入失敗，請重新整理";
         initBtn.style.background = "#7f1d1d";
         return;
       }
-      initBtn.innerHTML = `正在對準 3D 核心 (${threeIndex + 1}/${threeCdnList.length})...`;
+      initBtn.innerHTML = `引導 3D 渲染核心...`;
       
       let script = document.createElement('script');
       script.src = threeCdnList[threeIndex];
-      script.crossOrigin = "anonymous"; // 允許捕捉詳細錯誤
+      script.crossOrigin = "anonymous";
       
       script.onload = () => {
         if (window.THREE) {
-          // Three.js 成功就位，開始加載 AR 追蹤核心
-          loadMindArEngine();
+          loadMindArEngine(); // Three.js 成功，進入下一階段
         } else {
           threeIndex++;
           loadThreeEngine();
@@ -98,22 +94,22 @@
       document.head.appendChild(script);
     }
 
-    // 第二步：加載 AR 追蹤核心 MindAR
+    // 階段二：掛載經典全域版 AR 追蹤核心
     function loadMindArEngine() {
       if (mindArIndex >= mindArCdnList.length) {
-        initBtn.innerHTML = "🚨 AR核心載入失敗，請重新整理網頁";
+        initBtn.innerHTML = "🚨 AR核心載入失敗，請重新整理";
         initBtn.style.background = "#7f1d1d";
         return;
       }
-      initBtn.innerHTML = `正在同步 AR 模組 (${mindArIndex + 1}/${mindArCdnList.length})...`;
+      initBtn.innerHTML = `對齊 AR 空間模組...`;
       
       let script = document.createElement('script');
       script.src = mindArCdnList[mindArIndex];
       script.crossOrigin = "anonymous";
       
       script.onload = () => {
+        // 驗證 v1.1.5 經典全域變數架構
         if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.MindARThree) {
-          // 雙核心全部就緒，正式解鎖啟動按鈕！
           initBtn.innerHTML = "啟動魔法連線";
           initBtn.style.background = "#022c22";
           initBtn.style.border = "2px solid #34d399";
@@ -134,10 +130,10 @@
       document.head.appendChild(script);
     }
     
-    // 初始化啟動
+    // 網頁開啟立刻發動載入
     window.addEventListener('DOMContentLoaded', loadThreeEngine);
 
-    // Firebase 與後續邏輯保持完美運作
+    // Firebase 連線設定
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
@@ -150,29 +146,31 @@
 
     async function startAR() {
       initBtn.disabled = true;
-      initBtn.innerText = "【1/3】相機權限已核准...";
+      initBtn.innerText = "正在取得相機授權...";
       initBtn.style.background = "#b45309"; 
       initBtn.style.color = "#fff";
 
       try {
+        // 先測試相機權限
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         
         initBtn.style.display = 'none'; 
         document.body.style.backgroundColor = 'transparent';
         statusText.style.display = 'block'; 
         crosshair.style.display = 'block'; 
-        statusText.innerText = "【2/3】正在下載 targets.mind 並進行時空對齊...";
+        statusText.innerText = "核心對齊中，請稍候...";
         
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
 
+        // 初始化 AR 物件
         mindartThree = new window.MINDAR.IMAGE.MindARThree({
           container: document.getElementById('container'),
           imageTargetSrc: 'targets.mind', 
           maxTrack: 1
         });
 
-        THREE = window.THREE; // 完美橋接全域的 Three.js 核心
+        THREE = window.THREE;
         renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
         targetMarker = new THREE.Group();
@@ -185,9 +183,24 @@
         targetMarker.position.set(0, 0.08, 0); targetMarker.visible = false; 
         anchorGroup.group.add(targetMarker);
 
-        anchorGroup.onTargetFound = () => { isTargetTracked = true; if (myRole === 'magician') statusText.innerText = "牌盒已鎖定。點擊右下角暗中設定座標點"; else { statusText.innerText = "空間特徵吻合，SCAN 系統就緒"; if (appState === 0) document.getElementById('circle-btn').style.display = 'flex'; } };
-        anchorGroup.onTargetLost = () => { isTargetTracked = false; statusText.innerText = "請對準桌上的 Bicycle 牌盒..."; if (myRole === 'audience') document.getElementById('circle-btn').style.display = 'none'; };
+        // 追蹤狀態觸發器
+        anchorGroup.onTargetFound = () => { 
+          isTargetTracked = true; 
+          if (myRole === 'magician') {
+            statusText.innerText = "牌盒已鎖定。點擊右下角暗中設定座標點"; 
+          } else { 
+            statusText.innerText = "空間特徵吻合，SCAN 系統就緒"; 
+            if (appState === 0) document.getElementById('circle-btn').style.display = 'flex'; 
+          } 
+        };
+        
+        anchorGroup.onTargetLost = () => { 
+          isTargetTracked = false; 
+          statusText.innerText = "請對準桌上的 Bicycle 牌盒..."; 
+          if (myRole === 'audience') document.getElementById('circle-btn').style.display = 'none'; 
+        };
 
+        // 魔術師端點擊邏輯
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
@@ -200,6 +213,7 @@
           } else statusText.innerText = "失敗：必須先對準牌盒才能設定位置！";
         });
 
+        // 觀眾端長按掃描邏輯
         if (myRole === 'audience') {
           db.on('value', (snapshot) => { const data = snapshot.val(); if (data && targetMarker) targetMarker.position.set(data.x, data.y, data.z); });
           let circleBtn = document.getElementById('circle-btn'), btnFill = document.getElementById('btn-fill');
@@ -208,8 +222,9 @@
           window.addEventListener('pointerup', cancelPress); circleBtn.addEventListener('pointerleave', cancelPress);
         }
 
+        // 啟動 AR 引擎驅動
         await mindartThree.start();
-        statusText.innerText = "【3/3】啟動成功！請對準桌上的 Bicycle 牌盒...";
+        statusText.innerText = "系統就緒！請對準桌上的 Bicycle 牌盒...";
         
         let radarSweep = document.getElementById('radar-sweep');
         renderer.setAnimationLoop((timestamp) => {
@@ -224,6 +239,7 @@
               if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
             }
           }
+          
           if (appState === 2 && isTargetTracked) {
             const radarAngle = ((timestamp % 2400) / 2400) * Math.PI * 2;
             radarSweep.style.transform = `rotate(${radarAngle}rad)`;
@@ -247,7 +263,7 @@
           renderer.render(scene, camera);
         });
       } catch (err) {
-        showFatalError("系統卡關: " + err.message + "。請確認網址列旁邊沒有相機被封鎖的圖示。");
+        showFatalError("AR啟動中斷: " + err.message + "。請確認網址列相機權限未被停用。");
       }
     }
   </script>
