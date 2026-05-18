@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V25.0 (透視X光版)</title>
+  <title>AR 空間雙機連線羅盤 V26.0 (魔術師除錯版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -23,7 +23,7 @@
     #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.8); border: 2px solid #34d399; color: #34d399; font-weight: bold; letter-spacing: 2px; font-size: 14px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 10; pointer-events: auto; overflow: hidden; display: none; }
     #btn-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(52, 211, 153, 0.6); z-index: 1; }
     .btn-text { position: relative; z-index: 2; } 
-    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; opacity: 0.9; letter-spacing: 2px; word-break: break-all; z-index: 1000; display: none; background: rgba(0,0,0,0.5); padding: 8px; border-radius: 5px; transition: background 0.2s ease, color 0.2s ease; border: 1px solid rgba(52, 211, 153, 0.2); }
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 13px; opacity: 0.9; letter-spacing: 1px; word-break: break-all; z-index: 1000; display: none; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 5px; transition: background 0.2s ease, color 0.2s ease; border: 1px solid rgba(52, 211, 153, 0.2); font-weight: bold; }
   </style>
 </head>
 <body>
@@ -91,7 +91,7 @@
 
     if (myRole === 'magician') { db.set({ status: "ready", x: 0, y: 0, z: 0 }); }
 
-    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat, invisiblePlane;
+    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat;
     let isTargetTracked = false, appState = 0, isPressing = false, pressStartTime = 0;
     let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0; 
     let isDataSynced = false; 
@@ -120,29 +120,22 @@
         THREE = window.THREE; renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
 
-        // 🌟 核心修正一：加入「隱形實體碰撞板」，寬度為牌盒的 20 倍，確保必定擊中！
-        invisiblePlane = new THREE.Mesh(
-          new THREE.PlaneGeometry(20, 20), 
-          new THREE.MeshBasicMaterial({ visible: false })
-        );
-        anchorGroup.group.add(invisiblePlane); // 綁在牌盒原點
-
         targetMarker = new THREE.Group();
 
-        // 🌟 核心修正二：加入 depthTest: false (X光穿透模式)，無論在哪都會顯示在最上層！
-        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.2, depthTest: false }); 
+        // X光穿透模式 (depthTest: false)
+        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8, depthTest: false }); 
         targetMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 32, 32), dotMat));
         
-        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.0, side: THREE.DoubleSide, depthTest: false });
+        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
         targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.08, 0.12, 64), ringMat));
 
         targetMarker.position.set(0, 0, 0); 
-        targetMarker.visible = false; // 初始隱藏，直到收到座標
+        targetMarker.visible = false; 
         anchorGroup.group.add(targetMarker);
 
         anchorGroup.onTargetFound = () => { 
           isTargetTracked = true; 
-          if (myRole === 'magician') statusText.innerText = "【準心鎖定模式】請將螢幕準心對準目標，點擊右下角確認"; 
+          if (myRole === 'magician') statusText.innerText = "【準備就緒】對準目標後，點擊右下角"; 
           else refreshAudienceUI(); 
         };
         
@@ -152,7 +145,9 @@
           else refreshAudienceUI(); 
         };
 
-        // 魔術師發射端 (使用隱形畫布實體射線)
+        // ==========================================
+        // 🎩 魔術師端發射邏輯 (V26 除錯核心)
+        // ==========================================
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
@@ -160,38 +155,56 @@
           if (isTargetTracked) {
             scene.updateMatrixWorld(true);
             const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // 從畫面正中央(十字準心)發射
 
-            // 直接射擊隱形碰撞板
-            const intersects = raycaster.intersectObject(invisiblePlane);
-            
-            if (intersects.length > 0) {
-              const localPos = anchorGroup.group.worldToLocal(intersects[0].point);
-              // 🌟 核心修正三：Z軸強制 +0.02 浮空，避免緊貼牌面
-              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: 0.02 }); 
-              
-              statusText.innerText = "🔒 【密】準心目標錨點已成功鎖定！";
-              statusText.style.background = "rgba(52, 211, 153, 0.95)"; statusText.style.color = "#022c22"; statusText.style.fontWeight = "bold";
+            // 重建無限大數學平面 (與牌盒表面完全平行)
+            const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
+            const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
+            const mathPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+
+            const intersectPoint = new THREE.Vector3();
+            let localPos;
+
+            if (raycaster.ray.intersectPlane(mathPlane, intersectPoint)) {
+              // 成功計算出平面交點
+              localPos = anchorGroup.group.worldToLocal(intersectPoint);
             } else {
-              // 備用防呆方案
+              // 防呆：如果射線與平面完全平行(極少發生)
               const fallbackWorld = new THREE.Vector3(0, 0, -0.2).applyMatrix4(camera.matrixWorld);
-              const localPos = anchorGroup.group.worldToLocal(fallbackWorld);
-              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: 0.02 });
-              statusText.innerText = "🔒 【密】相對錨點已強制設定！(未擊中平面)";
+              localPos = anchorGroup.group.worldToLocal(fallbackWorld);
             }
+
+            // 強制浮空 0.02 (避免被實體桌面吃掉)
+            localPos.z = 0.02;
+
+            // 🟢 V26 新增：魔術師端立即顯示錨點！
+            targetMarker.position.copy(localPos);
+            targetMarker.visible = true; 
+            targetMarker.scale.set(1.2, 1.2, 1.2);
+
+            // 🟢 V26 新增：顯示詳細座標資訊
+            const xStr = localPos.x.toFixed(2);
+            const yStr = localPos.y.toFixed(2);
+            statusText.innerText = `✅ 鎖定成功！座標 [ X: ${xStr}, Y: ${yStr} ]`;
+            statusText.style.background = "rgba(52, 211, 153, 0.95)"; 
+            statusText.style.color = "#022c22";
+
+            // 發送至 Firebase
+            db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
             
             setTimeout(() => {
-              statusText.style.background = "rgba(0,0,0,0.5)"; statusText.style.color = "#34d399"; statusText.style.fontWeight = "normal";
-              if (isTargetTracked) statusText.innerText = "【準心鎖定模式】請將螢幕準心對準目標，點擊右下角確認";
-            }, 2200);
+              statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
+              if (isTargetTracked) statusText.innerText = "錨點已部署，觀眾端可開始掃描";
+            }, 4000);
+            
             if(navigator.vibrate) navigator.vibrate([40, 40]);
           } else {
             statusText.innerText = "❌ 警告：必須先照到牌盒才能鎖定錨點！";
             statusText.style.background = "rgba(239, 68, 68, 0.95)"; statusText.style.color = "#fff";
             setTimeout(() => {
-              statusText.style.background = "rgba(0,0,0,0.5)"; statusText.style.color = "#34d399";
+              statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
               if (!isTargetTracked) statusText.innerText = "請確保 Bicycle 牌盒在畫面中...";
-            }, 2200);
+            }, 2000);
           }
         });
 
@@ -201,9 +214,9 @@
             const data = snapshot.val(); 
             if (data && data.status === "locked" && typeof data.x === 'number') {
               targetMarker.position.set(data.x, data.y, data.z);
-              targetMarker.visible = true; // 🌟 收到座標後，直接進入待機微光模式
+              targetMarker.visible = true; // 待機微光
               targetMarker.scale.set(0.6, 0.6, 0.6);
-              dotMat.opacity = 0.2; ringMat.opacity = 0.0;
+              dotMat.opacity = 0.3; ringMat.opacity = 0.1;
               isDataSynced = true;
             } else {
               isDataSynced = false; appState = 0; targetMarker.visible = false;
@@ -224,7 +237,6 @@
         
         let radarSweep = document.getElementById('radar-sweep');
         
-        // 核心渲染迴圈
         renderer.setAnimationLoop((timestamp) => {
           try {
             if (isPressing && myRole === 'audience') {
@@ -239,35 +251,29 @@
               }
             }
             
-            if (appState === 2 && isTargetTracked) {
+            if (appState === 2 && isTargetTracked && myRole === 'audience') {
               const radarAngle = ((timestamp % 2400) / 2400) * Math.PI * 2;
               radarSweep.style.transform = `rotate(${radarAngle}rad)`;
               
               scene.updateMatrixWorld(true);
-              
               const camInverse = new THREE.Matrix4().copy(camera.matrixWorld).invert();
               const targetWorldPos = new THREE.Vector3(); 
               targetMarker.getWorldPosition(targetWorldPos); 
-              
               const localToCam = targetWorldPos.clone().applyMatrix4(camInverse);
               
-              // 在相機前方才進行角度判定
               if (localToCam.z < 0) { 
                 const vector = targetWorldPos.clone().project(camera);
-                
                 let targetAngle = Math.atan2(vector.x, vector.y); 
                 if (targetAngle < 0) targetAngle += Math.PI * 2;
                 let angleDiff = Math.abs(radarAngle - targetAngle); 
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
                 
-                // 雷達掃過觸發
                 if (angleDiff < 0.4 && !isFlashing && (timestamp - lastFlashTriggerTime > 1800)) {
                   isFlashing = true; flashStartTime = timestamp; lastFlashTriggerTime = timestamp;
                   if(navigator.vibrate) navigator.vibrate([60, 120]);
                 }
               }
               
-              // 動畫控制
               if (isFlashing) {
                 let phase = Math.floor((timestamp - flashStartTime) / 120);
                 if (phase === 0 || phase === 2) { 
@@ -278,8 +284,7 @@
                   isFlashing = false; 
                 } 
               } else { 
-                // 掃描中但未被雷達擊中時，保持微光狀態 (防走丟設計)
-                targetMarker.scale.set(0.6, 0.6, 0.6); dotMat.opacity = 0.2; ringMat.opacity = 0.0; 
+                targetMarker.scale.set(0.6, 0.6, 0.6); dotMat.opacity = 0.3; ringMat.opacity = 0.1; 
               }
             }
             renderer.render(scene, camera);
