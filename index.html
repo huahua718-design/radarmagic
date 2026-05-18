@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V26.0 (魔術師除錯版)</title>
+  <title>AR 空間雙機連線羅盤 V27.0 (強制置頂版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -121,13 +121,20 @@
         anchorGroup = mindartThree.addAnchor(0);
 
         targetMarker = new THREE.Group();
+        // 🌟 核心修正一：強制提高群組整體的渲染順序至頂天
+        targetMarker.renderOrder = 99999; 
 
-        // X光穿透模式 (depthTest: false)
-        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8, depthTest: false }); 
-        targetMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 32, 32), dotMat));
+        // 🌟 核心修正二：實心不透明純霓虹綠，徹底排除半透明被蓋掉的可能，加入 depthWrite: false
+        dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: false, depthTest: false, depthWrite: false }); 
+        // 🌟 核心修正三：半徑再次放大到 0.12 (約 2.5 公分大，非常顯眼)
+        const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 32), dotMat);
+        dotMesh.renderOrder = 99999;
+        targetMarker.add(dotMesh);
         
-        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false });
-        targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.08, 0.12, 64), ringMat));
+        ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+        const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 64), ringMat);
+        ringMesh.renderOrder = 99999;
+        targetMarker.add(ringMesh);
 
         targetMarker.position.set(0, 0, 0); 
         targetMarker.visible = false; 
@@ -145,9 +152,7 @@
           else refreshAudienceUI(); 
         };
 
-        // ==========================================
-        // 🎩 魔術師端發射邏輯 (V26 除錯核心)
-        // ==========================================
+        // 魔術師端點擊發射
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
@@ -155,9 +160,8 @@
           if (isTargetTracked) {
             scene.updateMatrixWorld(true);
             const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // 從畫面正中央(十字準心)發射
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
 
-            // 重建無限大數學平面 (與牌盒表面完全平行)
             const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
             const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
             const mathPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
@@ -166,35 +170,34 @@
             let localPos;
 
             if (raycaster.ray.intersectPlane(mathPlane, intersectPoint)) {
-              // 成功計算出平面交點
               localPos = anchorGroup.group.worldToLocal(intersectPoint);
             } else {
-              // 防呆：如果射線與平面完全平行(極少發生)
               const fallbackWorld = new THREE.Vector3(0, 0, -0.2).applyMatrix4(camera.matrixWorld);
               localPos = anchorGroup.group.worldToLocal(fallbackWorld);
             }
 
-            // 強制浮空 0.02 (避免被實體桌面吃掉)
-            localPos.z = 0.02;
+            // 強制浮空，避免貼地
+            localPos.z = 0.03;
 
-            // 🟢 V26 新增：魔術師端立即顯示錨點！
+            // 魔術師端本機強制顯現
             targetMarker.position.copy(localPos);
             targetMarker.visible = true; 
-            targetMarker.scale.set(1.2, 1.2, 1.2);
+            targetMarker.scale.set(1.0, 1.0, 1.0);
+            targetMarker.updateMatrixWorld(true); // 強制更新世界矩陣
 
-            // 🟢 V26 新增：顯示詳細座標資訊
+            // 顯示狀態
             const xStr = localPos.x.toFixed(2);
             const yStr = localPos.y.toFixed(2);
             statusText.innerText = `✅ 鎖定成功！座標 [ X: ${xStr}, Y: ${yStr} ]`;
-            statusText.style.background = "rgba(52, 211, 153, 0.95)"; 
-            statusText.style.color = "#022c22";
+            statusText.style.background = "rgba(0, 255, 0, 0.95)"; 
+            statusText.style.color = "#000";
 
-            // 發送至 Firebase
+            // 發送 Firebase
             db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
             
             setTimeout(() => {
               statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
-              if (isTargetTracked) statusText.innerText = "錨點已部署，觀眾端可開始掃描";
+              if (isTargetTracked) statusText.innerText = "錨點已強制置頂顯現，觀眾端可同步";
             }, 4000);
             
             if(navigator.vibrate) navigator.vibrate([40, 40]);
@@ -214,9 +217,8 @@
             const data = snapshot.val(); 
             if (data && data.status === "locked" && typeof data.x === 'number') {
               targetMarker.position.set(data.x, data.y, data.z);
-              targetMarker.visible = true; // 待機微光
+              targetMarker.visible = true; // 待機強顯
               targetMarker.scale.set(0.6, 0.6, 0.6);
-              dotMat.opacity = 0.3; ringMat.opacity = 0.1;
               isDataSynced = true;
             } else {
               isDataSynced = false; appState = 0; targetMarker.visible = false;
@@ -277,14 +279,14 @@
               if (isFlashing) {
                 let phase = Math.floor((timestamp - flashStartTime) / 120);
                 if (phase === 0 || phase === 2) { 
-                  targetMarker.scale.set(1.5, 1.5, 1.5); dotMat.opacity = 1.0; ringMat.opacity = 1.0; 
+                  targetMarker.scale.set(1.5, 1.5, 1.5);
                 } else if (phase === 1 || phase === 3) { 
-                  targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.8; ringMat.opacity = 0.5; 
+                  targetMarker.scale.set(1.0, 1.0, 1.0);
                 } else { 
                   isFlashing = false; 
                 } 
               } else { 
-                targetMarker.scale.set(0.6, 0.6, 0.6); dotMat.opacity = 0.3; ringMat.opacity = 0.1; 
+                targetMarker.scale.set(0.6, 0.6, 0.6);
               }
             }
             renderer.render(scene, camera);
