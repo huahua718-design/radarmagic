@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V27.0 (強制置頂版)</title>
+  <title>AR 空間雙機連線羅盤 V28.0 (世界絕對座標版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -120,25 +120,24 @@
         THREE = window.THREE; renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
 
+        // 🌟 核心修正一：直接把錨點做成世界級物件
         targetMarker = new THREE.Group();
-        // 🌟 核心修正一：強制提高群組整體的渲染順序至頂天
-        targetMarker.renderOrder = 99999; 
+        targetMarker.renderOrder = 999999; // 究極強行置頂
 
-        // 🌟 核心修正二：實心不透明純霓虹綠，徹底排除半透明被蓋掉的可能，加入 depthWrite: false
         dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: false, depthTest: false, depthWrite: false }); 
-        // 🌟 核心修正三：半徑再次放大到 0.12 (約 2.5 公分大，非常顯眼)
         const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 32), dotMat);
-        dotMesh.renderOrder = 99999;
+        dotMesh.renderOrder = 999999;
         targetMarker.add(dotMesh);
         
-        ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
-        const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.24, 64), ringMat);
-        ringMesh.renderOrder = 99999;
+        ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
+        const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.25, 64), ringMat);
+        ringMesh.renderOrder = 999999;
         targetMarker.add(ringMesh);
 
-        targetMarker.position.set(0, 0, 0); 
         targetMarker.visible = false; 
-        anchorGroup.group.add(targetMarker);
+        
+        // 🌟 核心修正二：直接把綠色小球加到 scene 中，徹底擺脫牌盒底下的矩陣干擾！
+        scene.add(targetMarker);
 
         anchorGroup.onTargetFound = () => { 
           isTargetTracked = true; 
@@ -152,7 +151,9 @@
           else refreshAudienceUI(); 
         };
 
-        // 魔術師端點擊發射
+        // ==========================================
+        // 🎩 魔術師端發射邏輯 (V28 世界絕對座標版)
+        // ==========================================
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
@@ -162,43 +163,42 @@
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
 
+            // 用牌盒的世界矩陣，建立一個當下的世界幾何平面
             const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
             const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
             const mathPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
 
             const intersectPoint = new THREE.Vector3();
-            let localPos;
 
             if (raycaster.ray.intersectPlane(mathPlane, intersectPoint)) {
-              localPos = anchorGroup.group.worldToLocal(intersectPoint);
+              // 🌟 核心修正三：不轉換了！直接拿這個「世界絕對座標」塞給小球
+              targetMarker.position.copy(intersectPoint);
+              
+              // 稍微往相機方向拉近一滴滴(0.02手動偏移)，確保不被任何世界物件吃掉
+              const toCam = new THREE.Vector3().subVectors(camera.position, intersectPoint).normalize();
+              targetMarker.position.addScaledVector(toCam, 0.02);
+
+              targetMarker.visible = true; 
+              targetMarker.scale.set(1.0, 1.0, 1.0);
+
+              // 顯示狀態
+              const xStr = intersectPoint.x.toFixed(2);
+              const yStr = intersectPoint.y.toFixed(2);
+              const zStr = intersectPoint.z.toFixed(2);
+              statusText.innerText = `✅ 世界鎖定！[ X: ${xStr}, Y: ${yStr}, Z: ${zStr} ]`;
+              statusText.style.background = "rgba(0, 255, 0, 0.95)"; 
+              statusText.style.color = "#000";
+
+              // 將絕對座標發送至 Firebase
+              db.set({ status: "locked", x: intersectPoint.x, y: intersectPoint.y, z: intersectPoint.z }); 
+              
+              setTimeout(() => {
+                statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
+                if (isTargetTracked) statusText.innerText = "絕對錨點部署完成，小球已強顯";
+              }, 4000);
             } else {
-              const fallbackWorld = new THREE.Vector3(0, 0, -0.2).applyMatrix4(camera.matrixWorld);
-              localPos = anchorGroup.group.worldToLocal(fallbackWorld);
+              statusText.innerText = "❌ 射線計算失敗，請再對準一次！";
             }
-
-            // 強制浮空，避免貼地
-            localPos.z = 0.03;
-
-            // 魔術師端本機強制顯現
-            targetMarker.position.copy(localPos);
-            targetMarker.visible = true; 
-            targetMarker.scale.set(1.0, 1.0, 1.0);
-            targetMarker.updateMatrixWorld(true); // 強制更新世界矩陣
-
-            // 顯示狀態
-            const xStr = localPos.x.toFixed(2);
-            const yStr = localPos.y.toFixed(2);
-            statusText.innerText = `✅ 鎖定成功！座標 [ X: ${xStr}, Y: ${yStr} ]`;
-            statusText.style.background = "rgba(0, 255, 0, 0.95)"; 
-            statusText.style.color = "#000";
-
-            // 發送 Firebase
-            db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
-            
-            setTimeout(() => {
-              statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
-              if (isTargetTracked) statusText.innerText = "錨點已強制置頂顯現，觀眾端可同步";
-            }, 4000);
             
             if(navigator.vibrate) navigator.vibrate([40, 40]);
           } else {
@@ -216,8 +216,9 @@
           db.on('value', (snapshot) => { 
             const data = snapshot.val(); 
             if (data && data.status === "locked" && typeof data.x === 'number') {
+              // 觀眾端直接同步世界絕對座標
               targetMarker.position.set(data.x, data.y, data.z);
-              targetMarker.visible = true; // 待機強顯
+              targetMarker.visible = true; 
               targetMarker.scale.set(0.6, 0.6, 0.6);
               isDataSynced = true;
             } else {
