@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V23.0 (幾何射線版)</title>
+  <title>AR 空間雙機連線羅盤 V24.0 (視覺巨化版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -98,7 +98,6 @@
     
     window.addEventListener('DOMContentLoaded', loadThreeEngine);
 
-    // Firebase 配置
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
@@ -127,7 +126,7 @@
           circleBtn.style.display = 'none';
         }
       } else {
-        statusText.innerText = "請對準桌上的 Bicycle 牌盒...";
+        statusText.innerText = "請將 Bicycle 牌盒保持在畫面中...";
         circleBtn.style.display = 'none';
       }
     }
@@ -154,10 +153,12 @@
         anchorGroup = mindartThree.addAnchor(0);
         targetMarker = new THREE.Group();
 
+        // 🟢 【V24 修復】大幅度巨化錨點尺寸！ (將 0.006 放大約 10倍 到 0.05)
         dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.5 }); 
-        targetMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.006, 16, 16), dotMat));
+        targetMarker.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 32, 32), dotMat));
+        
         ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
-        targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.009, 0.013, 32), ringMat));
+        targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.08, 0.12, 64), ringMat));
 
         targetMarker.position.set(0, 0, 0); targetMarker.visible = false; 
         anchorGroup.group.add(targetMarker);
@@ -172,30 +173,28 @@
         anchorGroup.onTargetLost = () => { 
           isTargetTracked = false; 
           if (myRole === 'magician') {
-            statusText.innerText = "請對準桌上的 Bicycle 牌盒..."; 
+            statusText.innerText = "請確保 Bicycle 牌盒在畫面中..."; 
           } else { refreshAudienceUI(); } 
         };
 
-        // 【🔥 魔術師發射端修復】：改為幾何射線交織投影，鎖定準心指向的平面座標
+        // 魔術師發射端
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
           
           if (isTargetTracked) {
-            scene.updateMatrixWorld(true); // 迫使世界矩陣全面計算
+            scene.updateMatrixWorld(true);
 
-            // 建立中心射線
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-            // 以牌盒當前的姿態，在空間中虛擬一條 Z=0 的無限延伸二維平面
+            // 基準依然是牌盒，計算一張與牌盒等高的虛擬桌面網格
             const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
             const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
             const targetPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
 
             const intersectPoint = new THREE.Vector3();
             if (raycaster.ray.intersectPlane(targetPlane, intersectPoint)) {
-              // 精準捕捉到射線穿透牌盒平面的相對局部座標
               const localPos = anchorGroup.group.worldToLocal(intersectPoint);
               
               db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
@@ -203,7 +202,6 @@
               statusText.innerText = "🔒 【密】準心目標錨點已成功鎖定！";
               statusText.style.background = "rgba(52, 211, 153, 0.95)"; statusText.style.color = "#022c22"; statusText.style.fontWeight = "bold";
             } else {
-              // 備用安全方案
               const fallbackWorld = new THREE.Vector3(0, 0, -0.15).applyMatrix4(camera.matrixWorld);
               const localPos = anchorGroup.group.worldToLocal(fallbackWorld);
               db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z });
@@ -216,11 +214,11 @@
             }, 2200);
             if(navigator.vibrate) navigator.vibrate([40, 40]);
           } else {
-            statusText.innerText = "❌ 警告：必須先對準牌盒才能鎖定錨點！";
+            statusText.innerText = "❌ 警告：必須先照到牌盒才能鎖定錨點！";
             statusText.style.background = "rgba(239, 68, 68, 0.95)"; statusText.style.color = "#fff";
             setTimeout(() => {
               statusText.style.background = "rgba(0,0,0,0.5)"; statusText.style.color = "#34d399";
-              if (!isTargetTracked) statusText.innerText = "請對準桌上的 Bicycle 牌盒...";
+              if (!isTargetTracked) statusText.innerText = "請確保 Bicycle 牌盒在畫面中...";
             }, 2200);
           }
         });
@@ -272,17 +270,15 @@
               const radarAngle = ((timestamp % 2400) / 2400) * Math.PI * 2;
               radarSweep.style.transform = `rotate(${radarAngle}rad)`;
               
-              // 【🔥 核心關鍵修復一】：強刷整個場景樹的矩陣，迫使父節點的動態位移完美滲透至子節點
               scene.updateMatrixWorld(true);
               
-              // 【🔥 核心關鍵修復二】：改用絕對相機逆矩陣轉換，做高精度深度（Z軸）前方過濾
               const camInverse = new THREE.Matrix4().copy(camera.matrixWorld).invert();
               const targetWorldPos = new THREE.Vector3(); 
               targetMarker.getWorldPosition(targetWorldPos); 
               
               const localToCam = targetWorldPos.clone().applyMatrix4(camInverse);
               
-              if (localToCam.z < 0) { // 負 Z 代表點在相機前方，安全進入可視錐體內
+              if (localToCam.z < 0) { 
                 const vector = targetWorldPos.clone().project(camera);
                 
                 let targetAngle = Math.atan2(vector.x, vector.y); 
@@ -290,7 +286,8 @@
                 let angleDiff = Math.abs(radarAngle - targetAngle); 
                 if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
                 
-                if (angleDiff < 0.22 && !isFlashing && (timestamp - lastFlashTriggerTime > 1800)) {
+                // 🟢 【V24 修復】放寬雷達觸發角度限制 (從 0.22 放到 0.4)，確保比較容易掃描到
+                if (angleDiff < 0.4 && !isFlashing && (timestamp - lastFlashTriggerTime > 1800)) {
                   isFlashing = true; hasSweptOnce = true; flashStartTime = timestamp; lastFlashTriggerTime = timestamp;
                   if(navigator.vibrate) navigator.vibrate([60, 120]);
                 }
@@ -298,7 +295,7 @@
               
               if (isFlashing) {
                 targetMarker.visible = true; let phase = Math.floor((timestamp - flashStartTime) / 120);
-                if (phase === 0 || phase === 2) { targetMarker.scale.set(2.2, 2.2, 2.2); dotMat.opacity = 1.0; ringMat.opacity = 1.0; } 
+                if (phase === 0 || phase === 2) { targetMarker.scale.set(1.5, 1.5, 1.5); dotMat.opacity = 1.0; ringMat.opacity = 1.0; } 
                 else if (phase === 1 || phase === 3) { targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.5; ringMat.opacity = 0.3; } 
                 else isFlashing = false; 
               } else if (hasSweptOnce) { 
