@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V28.0 (世界絕對座標版)</title>
+  <title>AR 空間雙機連線羅盤 V29.0 (實體浮空圖釘版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -15,15 +15,15 @@
     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 120px; height: 120px; z-index: 200; pointer-events: auto; }
     #crosshair { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
-    .line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.4); }
-    .line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.4); }
-    .center-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid rgba(52, 211, 153, 0.6); border-radius: 50%; }
+    .line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.8); }
+    .line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.8); }
+    .center-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid rgba(52, 211, 153, 0.9); border-radius: 50%; }
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.1); pointer-events: none; }
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.5s ease; }
     #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.8); border: 2px solid #34d399; color: #34d399; font-weight: bold; letter-spacing: 2px; font-size: 14px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 10; pointer-events: auto; overflow: hidden; display: none; }
     #btn-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(52, 211, 153, 0.6); z-index: 1; }
     .btn-text { position: relative; z-index: 2; } 
-    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 13px; opacity: 0.9; letter-spacing: 1px; word-break: break-all; z-index: 1000; display: none; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 5px; transition: background 0.2s ease, color 0.2s ease; border: 1px solid rgba(52, 211, 153, 0.2); font-weight: bold; }
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; opacity: 0.95; letter-spacing: 1px; word-break: break-all; z-index: 1000; display: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 8px; transition: background 0.2s ease, color 0.2s ease; border: 1px solid rgba(52, 211, 153, 0.5); font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
@@ -46,14 +46,14 @@
 
     function showFatalError(msg) {
       statusText.style.display = 'block'; statusText.innerText = "【系統異常】： " + msg;
-      statusText.style.background = "rgba(239, 68, 68, 0.7)"; statusText.style.color = "#fff";
+      statusText.style.background = "rgba(239, 68, 68, 0.8)"; statusText.style.color = "#fff";
     }
     
     window.addEventListener('error', (e) => { if (e.message && (e.message.includes("Script error") || e.message === "Script error.")) return; showFatalError(e.message); });
     window.addEventListener('unhandledrejection', (e) => { const msg = e.reason ? e.reason.message : e.reason; if (msg && (msg.includes("Script error") || msg === "Script error.")) return; showFatalError(msg); });
 
-    const threeCdnList = [ "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js", "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js" ];
-    const mindArCdnList = [ "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js", "https://unpkg.com/mind-ar@1.1.5/dist/mindar-image-three.prod.js" ];
+    const threeCdnList = [ "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js" ];
+    const mindArCdnList = [ "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js" ];
 
     let threeIndex = 0, mindArIndex = 0;
 
@@ -91,7 +91,7 @@
 
     if (myRole === 'magician') { db.set({ status: "ready", x: 0, y: 0, z: 0 }); }
 
-    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat;
+    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, hitPlane;
     let isTargetTracked = false, appState = 0, isPressing = false, pressStartTime = 0;
     let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0; 
     let isDataSynced = false; 
@@ -120,28 +120,44 @@
         THREE = window.THREE; renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
 
-        // 🌟 核心修正一：直接把錨點做成世界級物件
-        targetMarker = new THREE.Group();
-        targetMarker.renderOrder = 999999; // 究極強行置頂
+        // ==========================================
+        // 🌟 1. 常駐原點標記 (測試渲染引擎用)
+        // ==========================================
+        const originMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true });
+        const originMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 0.1), originMat);
+        anchorGroup.group.add(originMesh); 
 
-        dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: false, depthTest: false, depthWrite: false }); 
-        const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 32, 32), dotMat);
-        dotMesh.renderOrder = 999999;
+        // ==========================================
+        // 🌟 2. 實體隱形接收木板 (負責承接射擊)
+        // ==========================================
+        const hitPlaneMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
+        hitPlane = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), hitPlaneMat);
+        anchorGroup.group.add(hitPlane);
+
+        // ==========================================
+        // 🌟 3. 立體圖釘標記 (綠球 + 綠柱)
+        // ==========================================
+        targetMarker = new THREE.Group();
+        
+        // 頂部大綠球 (強制拔高 Z=0.5 浮在空中)
+        const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); 
+        const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 32), dotMat);
+        dotMesh.position.z = 0.5; 
         targetMarker.add(dotMesh);
         
-        ringMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false, depthWrite: false });
-        const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.25, 64), ringMat);
-        ringMesh.renderOrder = 999999;
-        targetMarker.add(ringMesh);
+        // 連接柱體 (像圖釘一樣插在平面上)
+        const pillarMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.6 });
+        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8), pillarMat);
+        pillar.rotation.x = Math.PI / 2; // 轉向垂直於平面
+        pillar.position.z = 0.25;        // 柱子中心點
+        targetMarker.add(pillar);
 
         targetMarker.visible = false; 
-        
-        // 🌟 核心修正二：直接把綠色小球加到 scene 中，徹底擺脫牌盒底下的矩陣干擾！
-        scene.add(targetMarker);
+        anchorGroup.group.add(targetMarker); // 回歸綁定牌盒，由最穩定的內部計算
 
         anchorGroup.onTargetFound = () => { 
           isTargetTracked = true; 
-          if (myRole === 'magician') statusText.innerText = "【準備就緒】對準目標後，點擊右下角"; 
+          if (myRole === 'magician') statusText.innerText = "【準備就緒】瞄準桌面，點擊右下角"; 
           else refreshAudienceUI(); 
         };
         
@@ -152,7 +168,7 @@
         };
 
         // ==========================================
-        // 🎩 魔術師端發射邏輯 (V28 世界絕對座標版)
+        // 🎩 魔術師端發射邏輯 (V29 實體射線碰撞版)
         // ==========================================
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
@@ -163,51 +179,40 @@
             const raycaster = new THREE.Raycaster();
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
 
-            // 用牌盒的世界矩陣，建立一個當下的世界幾何平面
-            const planeNormal = new THREE.Vector3(0, 0, 1).applyQuaternion(anchorGroup.group.quaternion);
-            const planePoint = new THREE.Vector3(0, 0, 0).applyMatrix4(anchorGroup.group.matrixWorld);
-            const mathPlane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+            // 🌟 射擊「實體隱形木板」，絕對精準
+            const intersects = raycaster.intersectObject(hitPlane);
 
-            const intersectPoint = new THREE.Vector3();
+            if (intersects.length > 0) {
+              // 取得擊中點的本地座標
+              let localPos = anchorGroup.group.worldToLocal(intersects[0].point);
 
-            if (raycaster.ray.intersectPlane(mathPlane, intersectPoint)) {
-              // 🌟 核心修正三：不轉換了！直接拿這個「世界絕對座標」塞給小球
-              targetMarker.position.copy(intersectPoint);
-              
-              // 稍微往相機方向拉近一滴滴(0.02手動偏移)，確保不被任何世界物件吃掉
-              const toCam = new THREE.Vector3().subVectors(camera.position, intersectPoint).normalize();
-              targetMarker.position.addScaledVector(toCam, 0.02);
+              // 鎖定 Z 軸在平面上 (圖釘內部已經自帶高度了)
+              localPos.z = 0;
 
+              targetMarker.position.copy(localPos);
               targetMarker.visible = true; 
-              targetMarker.scale.set(1.0, 1.0, 1.0);
 
               // 顯示狀態
-              const xStr = intersectPoint.x.toFixed(2);
-              const yStr = intersectPoint.y.toFixed(2);
-              const zStr = intersectPoint.z.toFixed(2);
-              statusText.innerText = `✅ 世界鎖定！[ X: ${xStr}, Y: ${yStr}, Z: ${zStr} ]`;
+              const xStr = localPos.x.toFixed(2);
+              const yStr = localPos.y.toFixed(2);
+              statusText.innerText = `✅ 命中實體平面！[ X: ${xStr}, Y: ${yStr} ]`;
               statusText.style.background = "rgba(0, 255, 0, 0.95)"; 
               statusText.style.color = "#000";
 
-              // 將絕對座標發送至 Firebase
-              db.set({ status: "locked", x: intersectPoint.x, y: intersectPoint.y, z: intersectPoint.z }); 
+              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
               
               setTimeout(() => {
-                statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
-                if (isTargetTracked) statusText.innerText = "絕對錨點部署完成，小球已強顯";
+                statusText.style.background = "rgba(0,0,0,0.8)"; statusText.style.color = "#34d399";
+                if (isTargetTracked) statusText.innerText = "立體圖釘已部署，觀眾端可同步";
               }, 4000);
             } else {
-              statusText.innerText = "❌ 射線計算失敗，請再對準一次！";
+              statusText.innerText = "❌ 射線沒有打中桌面，請稍微往下瞄準！";
+              statusText.style.background = "rgba(239, 68, 68, 0.9)";
             }
             
             if(navigator.vibrate) navigator.vibrate([40, 40]);
           } else {
-            statusText.innerText = "❌ 警告：必須先照到牌盒才能鎖定錨點！";
-            statusText.style.background = "rgba(239, 68, 68, 0.95)"; statusText.style.color = "#fff";
-            setTimeout(() => {
-              statusText.style.background = "rgba(0,0,0,0.7)"; statusText.style.color = "#34d399";
-              if (!isTargetTracked) statusText.innerText = "請確保 Bicycle 牌盒在畫面中...";
-            }, 2000);
+            statusText.innerText = "❌ 必須照到牌盒才能定位空間！";
           }
         });
 
@@ -216,7 +221,6 @@
           db.on('value', (snapshot) => { 
             const data = snapshot.val(); 
             if (data && data.status === "locked" && typeof data.x === 'number') {
-              // 觀眾端直接同步世界絕對座標
               targetMarker.position.set(data.x, data.y, data.z);
               targetMarker.visible = true; 
               targetMarker.scale.set(0.6, 0.6, 0.6);
@@ -243,6 +247,7 @@
         renderer.setAnimationLoop((timestamp) => {
           try {
             if (isPressing && myRole === 'audience') {
+              // ... 觀眾掃描動畫維持不變 ...
               if (pressStartTime === 0) pressStartTime = timestamp;
               let progress = Math.min((timestamp - pressStartTime) / 1800, 1.0); 
               document.getElementById('btn-fill').style.height = (progress * 100) + '%';
