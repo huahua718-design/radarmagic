@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR 空間雙機連線羅盤 V17.5</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+  <style>
+    body { 
+      margin: 0; overflow: hidden; background-color: #000 !important; 
+      font-family: 'Courier New', Courier, monospace; touch-action: none; 
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    }
+    
+    #init-btn {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      padding: 18px 36px; background: #111827;
+      border: 2px solid #4b5563; color: #9ca3af; font-size: 18px; font-weight: bold;
+      letter-spacing: 3px; border-radius: 10px; cursor: not-allowed;
+      z-index: 9999; box-shadow: 0 0 15px rgba(0,0,0,0.5);
+      display: block; pointer-events: auto; transition: all 0.3s ease;
+    }
+
+    #container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
+    #magician-zone { position: absolute; bottom: 0; right: 0; width: 120px; height: 120px; z-index: 200; pointer-events: auto; }
+
+    #crosshair { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
+    .line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.4); }
+    .line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.4); }
+    .center-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid rgba(52, 211, 153, 0.6); border-radius: 50%; }
+    
+    #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.1); pointer-events: none; }
+    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.5s ease; }
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.8); border: 2px solid #34d399; color: #34d399; font-weight: bold; letter-spacing: 2px; font-size: 14px; display: flex; justify-content: center; align-items: center; cursor: pointer; z-index: 10; pointer-events: auto; overflow: hidden; display: none; }
+    #btn-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(52, 211, 153, 0.6); z-index: 1; }
+    .btn-text { position: relative; z-index: 2; } 
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; opacity: 0.9; letter-spacing: 2px; word-break: break-all; z-index: 1000; display: none; }
+  </style>
+</head>
+<body>
+
+  <button id="init-btn">核心模組加載中...</button>
+  <div id="container"></div>
+  
+  <div id="overlay">
+    <div id="crosshair"><div class="line-v"></div><div class="line-h"></div><div class="center-circle"></div></div>
+    <div id="status-text">SYSTEM STANDBY</div>
+    <div id="radar-container"><div id="radar-sweep"></div></div>
+    <button id="circle-btn"><div id="btn-fill"></div><span class="btn-text">SCAN</span></button>
+  </div>
+  <div id="magician-zone"></div>
+
+  <script>
+    const initBtn = document.getElementById('init-btn');
+    const statusText = document.getElementById('status-text');
+
+    function showFatalError(msg) {
+      statusText.style.display = 'block';
+      statusText.innerText = "【錯誤】: " + msg;
+      statusText.style.color = "#ef4444";
+    }
+    window.addEventListener('error', (e) => showFatalError(e.message));
+    window.addEventListener('unhandledrejection', (e) => showFatalError(e.reason ? e.reason.message : e.reason));
+
+    // 等待核心引擎準備
+    function checkEngineReady() {
+      if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.MindARThree) {
+        initBtn.innerText = "啟動魔法連線";
+        initBtn.style.background = "#022c22";
+        initBtn.style.border = "2px solid #34d399";
+        initBtn.style.color = "#34d399";
+        initBtn.style.cursor = "pointer";
+        initBtn.style.boxShadow = "0 0 25px rgba(52, 211, 153, 0.6)";
+        
+        // 改用最標準的 click 事件，確保 100% 觸發
+        initBtn.addEventListener('click', startAR);
+      } else {
+        setTimeout(checkEngineReady, 300);
+      }
+    }
+    window.addEventListener('DOMContentLoaded', checkEngineReady);
+
+    const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref("magic_space_node");
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const myRole = urlParams.get('role') || 'audience'; 
+
+    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat;
+    let isTargetTracked = false;
+    let circleBtn = document.getElementById('circle-btn');
+    let btnFill = document.getElementById('btn-fill');
+    let radarSweep = document.getElementById('radar-sweep');
+    let crosshair = document.getElementById('crosshair');
+
+    let appState = 0; let isPressing = false; let pressStartTime = 0;
+    let isFlashing = false; let flashStartTime = 0; let lastFlashTriggerTime = 0; let hasSweptOnce = false; 
+
+    // 三段式安全啟動程序
+    async function startAR() {
+      // 防止重複點擊
+      initBtn.disabled = true;
+      initBtn.innerText = "【1/3】請求相機中...";
+      initBtn.style.background = "#b45309"; // 變成橘色代表有按到
+      initBtn.style.color = "#fff";
+
+      try {
+        // 第一段：直接單獨向 iOS 討相機權限 (此步驟不會造成卡頓)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        
+        // 第二段：相機授權成功，把按鈕藏起來，強制瀏覽器重繪畫面 (避免卡死感)
+        initBtn.style.display = 'none'; 
+        document.body.style.backgroundColor = 'transparent';
+        statusText.style.display = 'block'; 
+        crosshair.style.display = 'block'; 
+        statusText.innerText = "【2/3】相機已啟動，AI 編譯中 (可能卡頓幾秒，請稍候)...";
+        
+        // 關鍵：停頓 100 毫秒，強迫手機把上面的文字顯示出來！
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 釋放我們借來的相機流，準備交給 MindAR 完全接管
+        stream.getTracks().forEach(t => t.stop());
+
+        // 第三段：正式初始化 MindAR，這裡主執行緒會短暫凍結是正常的
+        mindartThree = new window.MINDAR.IMAGE.MindARThree({
+          container: document.getElementById('container'),
+          imageTargetSrc: 'targets.mind', 
+          maxTrack: 1
+        });
+
+        THREE = window.MINDAR.IMAGE.THREE;
+        renderer = mindartThree.renderer;
+        scene = mindartThree.scene;
+        camera = mindartThree.camera;
+        anchorGroup = mindartThree.addAnchor(0);
+        targetMarker = new THREE.Group();
+
+        const dotGeo = new THREE.SphereGeometry(0.006, 16, 16); 
+        dotMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.5 }); 
+        targetMarker.add(new THREE.Mesh(dotGeo, dotMat));
+        const ringGeo = new THREE.RingGeometry(0.009, 0.013, 32); 
+        ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
+        targetMarker.add(new THREE.Mesh(ringGeo, ringMat));
+
+        targetMarker.position.set(0, 0.08, 0);
+        targetMarker.visible = false; 
+        anchorGroup.group.add(targetMarker);
+
+        anchorGroup.onTargetFound = () => {
+          isTargetTracked = true;
+          if (myRole === 'magician') {
+            statusText.innerText = "牌盒已鎖定。點擊右下角暗中設定座標點";
+          } else {
+            statusText.innerText = "空間特徵吻合，SCAN 系統就緒";
+            if (appState === 0) circleBtn.style.display = 'flex';
+          }
+        };
+
+        anchorGroup.onTargetLost = () => {
+          isTargetTracked = false;
+          statusText.innerText = "請對準桌上的 Bicycle 牌盒...";
+          if (myRole === 'audience') circleBtn.style.display = 'none';
+        };
+
+        document.getElementById('magician-zone').addEventListener('click', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          if (myRole !== 'magician') return;
+          if (isTargetTracked) {
+            const cameraWorldPos = new THREE.Vector3(); camera.getWorldPosition(cameraWorldPos);
+            const localPos = anchorGroup.group.worldToLocal(cameraWorldPos);
+            db.set({ x: localPos.x, y: localPos.y, z: localPos.z }); 
+            statusText.innerText = "【密】空間點已暗中鎖定並上傳雲端！";
+            if(navigator.vibrate) navigator.vibrate(60);
+          } else { statusText.innerText = "失敗：必須先對準牌盒才能設定位置！"; }
+        });
+
+        if (myRole === 'audience') {
+          db.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data && targetMarker) targetMarker.position.set(data.x, data.y, data.z);
+          });
+          circleBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); isPressing = true; pressStartTime = 0; if(navigator.vibrate) navigator.vibrate(30); });
+          const cancelPress = () => { if(isPressing) { isPressing = false; btnFill.style.height = '0%'; } };
+          window.addEventListener('pointerup', cancelPress); circleBtn.addEventListener('pointerleave', cancelPress);
+        }
+
+        // 啟動 MindAR！
+        await mindartThree.start();
+        statusText.innerText = "【3/3】啟動成功！請對準桌上的 Bicycle 牌盒...";
+        
+        renderer.setAnimationLoop((timestamp) => {
+          if (isPressing && myRole === 'audience') {
+            if (pressStartTime === 0) pressStartTime = timestamp;
+            let progress = Math.min((timestamp - pressStartTime) / 1800, 1.0); 
+            btnFill.style.height = (progress * 100) + '%';
+            if (progress >= 1.0) {
+              isPressing = false; appState = 2; circleBtn.style.display = 'none';
+              statusText.innerText = "RADAR SCANNING SPATIAL ANOMALY...";
+              radarSweep.style.opacity = '1'; targetMarker.visible = false; hasSweptOnce = false;
+              if(navigator.vibrate) navigator.vibrate([80, 40, 80]);
+            }
+          }
+
+          if (appState === 2 && isTargetTracked) {
+            const radarAngle = ((timestamp % 2400) / 2400) * Math.PI * 2;
+            radarSweep.style.transform = `rotate(${radarAngle}rad)`;
+            const vector = new THREE.Vector3(); targetMarker.getWorldPosition(vector); vector.project(camera);
+
+            if (vector.z < 1) {
+              let targetAngle = Math.atan2(vector.x, vector.y); if (targetAngle < 0) targetAngle += Math.PI * 2;
+              let angleDiff = Math.abs(radarAngle - targetAngle); if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+              if (angleDiff < 0.22 && !isFlashing && (timestamp - lastFlashTriggerTime > 1800)) {
+                isFlashing = true; hasSweptOnce = true; flashStartTime = timestamp; lastFlashTriggerTime = timestamp;
+                if(navigator.vibrate) navigator.vibrate([60, 120]);
+              }
+            }
+
+            if (isFlashing) {
+              targetMarker.visible = true; let phase = Math.floor((timestamp - flashStartTime) / 120);
+              if (phase === 0 || phase === 2) { targetMarker.scale.set(2.2, 2.2, 2.2); dotMat.opacity = 1.0; ringMat.opacity = 1.0; } 
+              else if (phase === 1 || phase === 3) { targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.5; ringMat.opacity = 0.3; } 
+              else { isFlashing = false; }
+            } else if (hasSweptOnce) { targetMarker.visible = true; targetMarker.scale.set(1.0, 1.0, 1.0); dotMat.opacity = 0.5; ringMat.opacity = 0.3; } 
+            else { targetMarker.visible = false; }
+          }
+          renderer.render(scene, camera);
+        });
+      } catch (err) {
+        showFatalError("系統卡關: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
