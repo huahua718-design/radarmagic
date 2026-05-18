@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V17.9 (嚴格驗證版)</title>
+  <title>AR 空間雙機連線羅盤 V18.0 (雙核心護航版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -28,7 +28,7 @@
 </head>
 <body>
 
-  <button id="init-btn" disabled>安全檢測連線中...</button>
+  <button id="init-btn" disabled>環境安全檢測中...</button>
   <div id="container"></div>
   
   <div id="overlay">
@@ -48,56 +48,96 @@
       statusText.innerText = "【錯誤】: " + msg;
       statusText.style.color = "#ef4444";
     }
-    window.addEventListener('error', (e) => showFatalError(e.message));
+    
+    window.addEventListener('error', (e) => {
+      // 忽略無關緊要的跨網域Script警告，專注捕捉系統核心異常
+      if (e.message.includes("Script error.")) return; 
+      showFatalError(e.message);
+    });
     window.addEventListener('unhandledrejection', (e) => showFatalError(e.reason ? e.reason.message : e.reason));
 
-    // 多重線路名單
-    const cdnList = [
+    // 【雙核心 CDN 多重守護線路】
+    const threeCdnList = [
+      "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js",
+      "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"
+    ];
+    const mindArCdnList = [
       "https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-three.prod.js",
       "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
     ];
-    let currentCdnIndex = 0;
 
-    function loadEngine() {
-      if (currentCdnIndex >= cdnList.length) {
-        initBtn.innerHTML = "🚨 核心引擎解析崩潰<br><span style='font-size: 13px;'>網路被電信商嚴重干擾，請關閉 WiFi 切換為行動網路再試</span>";
+    let threeIndex = 0;
+    let mindArIndex = 0;
+
+    // 第一步：先加載 3D 渲染核心 Three.js
+    function loadThreeEngine() {
+      if (threeIndex >= threeCdnList.length) {
+        initBtn.innerHTML = "🚨 3D核心載入失敗，請重新整理網頁";
         initBtn.style.background = "#7f1d1d";
-        initBtn.style.color = "#fff";
         return;
       }
-      initBtn.innerHTML = `正在驗證魔法線路 (${currentCdnIndex + 1}/${cdnList.length})...`;
+      initBtn.innerHTML = `正在對準 3D 核心 (${threeIndex + 1}/${threeCdnList.length})...`;
       
       let script = document.createElement('script');
-      script.src = cdnList[currentCdnIndex];
+      script.src = threeCdnList[threeIndex];
+      script.crossOrigin = "anonymous"; // 允許捕捉詳細錯誤
       
       script.onload = () => {
-        // 【修改 2：嚴格核心實名驗證】
-        // 只有當 window.MINDAR 物件真實存在時，才解鎖按鈕。否則視為被網路攔截的空檔案。
+        if (window.THREE) {
+          // Three.js 成功就位，開始加載 AR 追蹤核心
+          loadMindArEngine();
+        } else {
+          threeIndex++;
+          loadThreeEngine();
+        }
+      };
+      script.onerror = () => {
+        threeIndex++;
+        loadThreeEngine();
+      };
+      document.head.appendChild(script);
+    }
+
+    // 第二步：加載 AR 追蹤核心 MindAR
+    function loadMindArEngine() {
+      if (mindArIndex >= mindArCdnList.length) {
+        initBtn.innerHTML = "🚨 AR核心載入失敗，請重新整理網頁";
+        initBtn.style.background = "#7f1d1d";
+        return;
+      }
+      initBtn.innerHTML = `正在同步 AR 模組 (${mindArIndex + 1}/${mindArCdnList.length})...`;
+      
+      let script = document.createElement('script');
+      script.src = mindArCdnList[mindArIndex];
+      script.crossOrigin = "anonymous";
+      
+      script.onload = () => {
         if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.MindARThree) {
+          // 雙核心全部就緒，正式解鎖啟動按鈕！
           initBtn.innerHTML = "啟動魔法連線";
           initBtn.style.background = "#022c22";
           initBtn.style.border = "2px solid #34d399";
           initBtn.style.color = "#34d399";
           initBtn.style.cursor = "pointer";
           initBtn.style.boxShadow = "0 0 25px rgba(52, 211, 153, 0.6)";
-          initBtn.disabled = false; // 正式啟用按鈕
+          initBtn.disabled = false;
           initBtn.addEventListener('click', startAR);
         } else {
-          // 抓到偽造檔案，立刻自動切換到下一條備用線路
-          currentCdnIndex++;
-          loadEngine();
+          mindArIndex++;
+          loadMindArEngine();
         }
       };
-      
       script.onerror = () => {
-        currentCdnIndex++;
-        loadEngine();
+        mindArIndex++;
+        loadMindArEngine();
       };
       document.head.appendChild(script);
     }
     
-    window.addEventListener('DOMContentLoaded', loadEngine);
+    // 初始化啟動
+    window.addEventListener('DOMContentLoaded', loadThreeEngine);
 
+    // Firebase 與後續邏輯保持完美運作
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
@@ -121,7 +161,7 @@
         document.body.style.backgroundColor = 'transparent';
         statusText.style.display = 'block'; 
         crosshair.style.display = 'block'; 
-        statusText.innerText = "【2/3】正在載入辨識檔 targets.mind...";
+        statusText.innerText = "【2/3】正在下載 targets.mind 並進行時空對齊...";
         
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
@@ -132,7 +172,7 @@
           maxTrack: 1
         });
 
-        THREE = window.MINDAR.IMAGE.THREE;
+        THREE = window.THREE; // 完美橋接全域的 Three.js 核心
         renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         anchorGroup = mindartThree.addAnchor(0);
         targetMarker = new THREE.Group();
