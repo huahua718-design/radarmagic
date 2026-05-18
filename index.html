@@ -3,49 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V31.0 (圖層核彈覆蓋版)</title>
+  <title>AR 空間雙機連線羅盤 V32.0 (強制鎖死畫布版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
   <style>
-    /* 🔥 暴力解法核心：直接對全域的 canvas 和 video 下達最高指令，無視 MindAR 和 Safari 的預設設定 */
-    canvas {
+    /* 🔥 暴力解法進化：不只調圖層，徹底鎖死位置，不准 JS 把畫布移到螢幕外 */
+    #container canvas, #container video {
       position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
+      top: 0px !important;
+      left: 0px !important;
       width: 100vw !important;
       height: 100vh !important;
-      z-index: 9999 !important; /* 絕對置頂 */
-      pointer-events: none !important; /* 不阻擋點擊 */
-      background-color: transparent !important;
-      opacity: 1 !important;
+      margin: 0px !important;
+      padding: 0px !important;
+      transform: none !important;
     }
-    video {
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      z-index: 1 !important; /* 壓在最底層 */
-      object-fit: cover !important;
-    }
+    #container canvas { z-index: 9999 !important; pointer-events: none !important; }
+    #container video { z-index: 1 !important; object-fit: cover !important; }
 
-    body { margin: 0; overflow: hidden; background-color: transparent !important; font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-    #init-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 36px; background: #111827; border: 2px solid #4b5563; color: #9ca3af; font-size: 18px; font-weight: bold; letter-spacing: 3px; border-radius: 10px; cursor: not-allowed; z-index: 10000; box-shadow: 0 0 15px rgba(0,0,0,0.5); display: block; pointer-events: auto; }
-    #container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 10; }
+    body { margin: 0; overflow: hidden; background-color: #000 !important; font-family: 'Courier New', Courier, monospace; touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+    #init-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 36px; background: #111827; border: 2px solid #4b5563; color: #9ca3af; font-size: 18px; font-weight: bold; letter-spacing: 3px; border-radius: 10px; cursor: pointer; z-index: 10000; display: block; pointer-events: auto; }
+    #container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 10; overflow: hidden; }
     #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100; pointer-events: none; }
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 120px; height: 120px; z-index: 10000; pointer-events: auto; }
     #crosshair { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; display: none; }
     .line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.8); }
     .line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.8); }
     .center-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid rgba(52, 211, 153, 0.9); border-radius: 50%; }
-    #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.1); pointer-events: none; }
-    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.5s ease; }
-    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.8); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; z-index: 10; pointer-events: auto; overflow: hidden; }
-    #btn-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(52, 211, 153, 0.6); z-index: 1; }
-    .btn-text { position: relative; z-index: 2; } 
+    
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; opacity: 0.95; z-index: 10000; display: none; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.5); font-weight: bold; }
+    
+    /* 🛠️ 新增：畫布座標偵測面板 */
+    #debug-panel { position: absolute; top: 100px; left: 5px; background: rgba(0,0,0,0.7); color: yellow; font-size: 10px; padding: 5px; z-index: 10000; border: 1px solid yellow; pointer-events: none; display: none; }
   </style>
 </head>
 <body>
@@ -55,47 +46,40 @@
   <div id="overlay">
     <div id="crosshair"><div class="line-v"></div><div class="line-h"></div><div class="center-circle"></div></div>
     <div id="status-text">SYSTEM STANDBY</div>
-    <div id="radar-container"><div id="radar-sweep"></div></div>
-    <button id="circle-btn"><div id="btn-fill"></div><span class="btn-text">SCAN</span></button>
+    <div id="debug-panel" id="debug-panel">CANVAS 偵測中...</div>
   </div>
   <div id="magician-zone"></div>
 
   <script>
     const initBtn = document.getElementById('init-btn');
     const statusText = document.getElementById('status-text');
+    const debugPanel = document.getElementById('debug-panel');
 
     function showFatalError(msg) {
-      statusText.style.display = 'block'; statusText.innerText = "【系統異常】： " + msg;
+      statusText.style.display = 'block'; statusText.innerText = "【系統異常】: " + msg;
       statusText.style.background = "rgba(239, 68, 68, 0.8)"; statusText.style.color = "#fff";
     }
-    
-    window.addEventListener('error', (e) => { if (e.message && e.message.includes("Script error")) return; showFatalError(e.message); });
-    window.addEventListener('unhandledrejection', (e) => { const msg = e.reason ? e.reason.message : e.reason; if (msg && msg.includes("Script error")) return; showFatalError(msg); });
 
     const threeCdnList = [ "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js" ];
     const mindArCdnList = [ "https://cdn.jsdelivr.net/npm/mind-ar@1.1.5/dist/mindar-image-three.prod.js" ];
     let threeIndex = 0, mindArIndex = 0;
 
     function loadThreeEngine() {
-      if (threeIndex >= threeCdnList.length) { initBtn.innerHTML = "🚨 3D核心失敗"; return; }
       initBtn.innerHTML = `引導 3D 核心...`;
       let script = document.createElement('script'); script.src = threeCdnList[threeIndex]; script.crossOrigin = "anonymous";
-      script.onload = () => { if (window.THREE) loadMindArEngine(); else { threeIndex++; loadThreeEngine(); } };
-      script.onerror = () => { threeIndex++; loadThreeEngine(); };
+      script.onload = () => { if (window.THREE) loadMindArEngine(); };
       document.head.appendChild(script);
     }
 
     function loadMindArEngine() {
-      if (mindArIndex >= mindArCdnList.length) { initBtn.innerHTML = "🚨 AR核心失敗"; return; }
       initBtn.innerHTML = `對齊 AR 空間...`;
       let script = document.createElement('script'); script.src = mindArCdnList[mindArIndex]; script.crossOrigin = "anonymous";
       script.onload = () => {
         if (window.MINDAR && window.MINDAR.IMAGE && window.MINDAR.IMAGE.MindARThree) {
           initBtn.innerHTML = "啟動魔法連線"; initBtn.style.background = "#022c22"; initBtn.style.border = "2px solid #34d399";
-          initBtn.style.color = "#34d399"; initBtn.style.cursor = "pointer"; initBtn.disabled = false; initBtn.addEventListener('click', startAR);
-        } else { mindArIndex++; loadMindArEngine(); }
+          initBtn.style.color = "#34d399"; initBtn.disabled = false; initBtn.addEventListener('click', startAR);
+        }
       };
-      script.onerror = () => { mindArIndex++; loadMindArEngine(); };
       document.head.appendChild(script);
     }
     
@@ -106,10 +90,9 @@
     const db = firebase.database().ref("magic_space_node");
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
-    if (myRole === 'magician') db.set({ status: "ready", x: 0, y: 0, z: 0 });
 
-    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, hitPlane;
-    let isTargetTracked = false, debugSphere;
+    let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker;
+    let isTargetTracked = false;
 
     async function startAR() {
       initBtn.disabled = true; initBtn.innerText = "相機啟動中...";
@@ -117,78 +100,67 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         initBtn.style.display = 'none'; 
         statusText.style.display = 'block'; document.getElementById('crosshair').style.display = 'block';
-        statusText.innerText = "相機連線成功，建立 3D 畫布...";
+        debugPanel.style.display = 'block';
+        statusText.innerText = "畫布強制置中建立中...";
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
 
         mindartThree = new window.MINDAR.IMAGE.MindARThree({ container: document.getElementById('container'), imageTargetSrc: 'targets.mind', maxTrack: 1 });
         THREE = window.THREE; renderer = mindartThree.renderer; scene = mindartThree.scene; camera = mindartThree.camera;
         
-        // 🔥 確保 WebGL 背景絕對透明
-        renderer.setClearColor(0x000000, 0);
-
-        // 🔥 暴力解法 3：在世界正中央丟一顆「超巨大紅色網格球」
-        const debugMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, wireframeLinewidth: 2 });
-        debugSphere = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), debugMat);
-        debugSphere.position.set(0, 0, -3); // 放在相機正前方 3 個單位
-        scene.add(debugSphere);
+        // 🔥 全螢幕白光測試：在相機前放一塊半透明白板
+        const fogMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+        const fogPlane = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), fogMat);
+        fogPlane.position.set(0, 0, -2);
+        camera.add(fogPlane);
+        scene.add(camera);
 
         anchorGroup = mindartThree.addAnchor(0);
 
-        // 超巨大藍色牌盒追蹤框 (放大5倍)
-        const originMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true, wireframeLinewidth: 2 });
-        const originMesh = new THREE.Mesh(new THREE.BoxGeometry(5, 5, 5), originMat);
+        // 巨大的藍色追蹤框
+        const originMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6, wireframe: true, wireframeLinewidth: 3 });
+        const originMesh = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), originMat);
         anchorGroup.group.add(originMesh); 
 
-        // 隱形接收板
-        const hitPlaneMat = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide });
-        hitPlane = new THREE.Mesh(new THREE.PlaneGeometry(15, 15), hitPlaneMat);
-        anchorGroup.group.add(hitPlane);
-
-        // 綠球與綠柱
-        targetMarker = new THREE.Group();
-        const dotMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); 
-        const dotMesh = new THREE.Mesh(new THREE.SphereGeometry(0.2, 32, 32), dotMat);
-        dotMesh.position.z = 0.5; targetMarker.add(dotMesh);
-        const pillarMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.6 });
-        const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.5, 8), pillarMat);
-        pillar.rotation.x = Math.PI / 2; pillar.position.z = 0.25; targetMarker.add(pillar);
+        // 綠球
+        targetMarker = new THREE.Mesh(new THREE.SphereGeometry(0.2, 32, 32), new THREE.MeshBasicMaterial({ color: 0x00ff00 }));
+        targetMarker.position.z = 0.5;
         targetMarker.visible = false; 
         anchorGroup.group.add(targetMarker);
 
-        anchorGroup.onTargetFound = () => { isTargetTracked = true; if (myRole === 'magician') statusText.innerText = "【追蹤成功】點擊發射"; };
+        anchorGroup.onTargetFound = () => { isTargetTracked = true; if (myRole === 'magician') statusText.innerText = "【追蹤成功】點擊右下角發射"; };
         anchorGroup.onTargetLost = () => { isTargetTracked = false; if (myRole === 'magician') statusText.innerText = "請照到牌盒..."; };
 
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
-          if (myRole !== 'magician') return;
-          if (isTargetTracked) {
-            scene.updateMatrixWorld(true);
-            const raycaster = new THREE.Raycaster();
-            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera); 
-            const intersects = raycaster.intersectObject(hitPlane);
-
-            if (intersects.length > 0) {
-              let localPos = anchorGroup.group.worldToLocal(intersects[0].point);
-              localPos.z = 0; targetMarker.position.copy(localPos); targetMarker.visible = true; 
-              statusText.innerText = `✅ 命中！綠色圖釘已放置`;
-              db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
-              if(navigator.vibrate) navigator.vibrate([40, 40]);
-            } else { statusText.innerText = "❌ 射線未命中桌面"; }
-          }
+          if (myRole !== 'magician' || !isTargetTracked) return;
+          
+          targetMarker.position.set(0, 0, 0.5); // 直接強制放在正中央上方
+          targetMarker.visible = true; 
+          statusText.innerText = `✅ 已強制放置綠球！`;
+          db.set({ status: "locked", x: 0, y: 0, z: 0.5 }); 
+          if(navigator.vibrate) navigator.vibrate(50);
         });
 
         await mindartThree.start();
         
-        renderer.setAnimationLoop((timestamp) => {
-          try {
-            if(debugSphere) {
-              debugSphere.rotation.y += 0.02;
-              debugSphere.rotation.x += 0.01;
-            }
-            renderer.render(scene, camera);
-          } catch (e) {}
-        });
+        // 每秒更新一次 Canvas 狀態
+        setInterval(() => {
+          const cvs = document.querySelector('canvas');
+          if(cvs) {
+            const rect = cvs.getBoundingClientRect();
+            debugPanel.innerHTML = `
+              CANVAS W: ${rect.width.toFixed(0)} | H: ${rect.height.toFixed(0)}<br>
+              TOP: ${rect.top.toFixed(0)} | LEFT: ${rect.left.toFixed(0)}<br>
+              DISPLAY: ${getComputedStyle(cvs).display}<br>
+              Z-INDEX: ${getComputedStyle(cvs).zIndex}
+            `;
+          } else {
+            debugPanel.innerHTML = `❌ 沒有找到 Canvas 標籤!`;
+          }
+        }, 1000);
+
+        renderer.setAnimationLoop(() => { renderer.render(scene, camera); });
       } catch (err) { showFatalError(err.message); }
     }
   </script>
