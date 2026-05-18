@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V21.0 (矩陣解鎖版)</title>
+  <title>AR 空間雙機連線羅盤 V22.0 (實時淨化版)</title>
   
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
@@ -51,7 +51,7 @@
       statusText.style.color = "#fff";
     }
     
-    // 全域資安雜訊防禦
+    // 全域防禦
     window.addEventListener('error', (e) => {
       if (e.message && (e.message.includes("Script error") || e.message === "Script error.")) return;
       showFatalError(e.message);
@@ -62,7 +62,6 @@
       showFatalError(msg);
     });
 
-    // 傳奇穩定版 CDN 組態
     const threeCdnList = [
       "https://cdnjs.cloudflare.com/ajax/libs/three.js/r124/three.min.js",
       "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.min.js"
@@ -100,19 +99,24 @@
     
     window.addEventListener('DOMContentLoaded', loadThreeEngine);
 
-    // Firebase 實時資料庫配置
+    // Firebase 配置
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
 
+    // 【生命週期防線】：魔術師進入時，率先強力洗空資料庫，杜絕歷史殘留物
+    if (myRole === 'magician') {
+      db.set({ status: "ready", x: 0, y: 0, z: 0 });
+    }
+
     let mindartThree, THREE, renderer, scene, camera, anchorGroup, targetMarker, dotMat, ringMat;
     let isTargetTracked = false, appState = 0, isPressing = false, pressStartTime = 0;
     let isFlashing = false, flashStartTime = 0, lastFlashTriggerTime = 0, hasSweptOnce = false; 
-    let isDataSynced = false; // 追蹤雲端是否已有魔術師鎖定的資料
+    let isDataSynced = false; 
 
-    // 觀眾端動態 UI 控制核心
+    // 觀眾端 UI 動態控制
     function refreshAudienceUI() {
       if (myRole !== 'audience') return;
       if (isTargetTracked) {
@@ -122,7 +126,7 @@
             circleBtn.style.display = 'flex';
           }
         } else {
-          statusText.innerText = "空間特徵吻合，等待安全金鑰傳輸...";
+          statusText.innerText = "空間特徵吻合，等待魔術師鎖定空間座標...";
           circleBtn.style.display = 'none';
         }
       } else {
@@ -138,7 +142,7 @@
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
         initBtn.style.display = 'none'; document.body.style.backgroundColor = 'transparent';
         statusText.style.display = 'block'; document.getElementById('crosshair').style.display = 'block';
-        statusText.innerText = "網路安全通道對齊中...";
+        statusText.innerText = "通道安全建立中...";
         
         await new Promise(resolve => setTimeout(resolve, 100));
         stream.getTracks().forEach(t => t.stop());
@@ -158,15 +162,14 @@
         ringMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.3, side: THREE.DoubleSide });
         targetMarker.add(new THREE.Mesh(new THREE.RingGeometry(0.009, 0.013, 32), ringMat));
 
-        // 初始隱形
         targetMarker.position.set(0, 0.08, 0); targetMarker.visible = false; 
         anchorGroup.group.add(targetMarker);
 
-        // 辨識狀態監聽
+        // 追蹤狀態控制
         anchorGroup.onTargetFound = () => { 
           isTargetTracked = true; 
           if (myRole === 'magician') {
-            statusText.innerText = "牌盒已鎖定。可隨時點擊右下角確認錨點"; 
+            statusText.innerText = "【系統就緒】請對準牌盒。點擊右下角確認錨點"; 
           } else { refreshAudienceUI(); } 
         };
         
@@ -177,7 +180,7 @@
           } else { refreshAudienceUI(); } 
         };
 
-        // 魔術師端：點擊右下角暗區發送相對座標
+        // 魔術師發射端
         document.getElementById('magician-zone').addEventListener('click', (e) => {
           e.preventDefault(); e.stopPropagation();
           if (myRole !== 'magician') return;
@@ -186,13 +189,14 @@
             const cameraWorldPos = new THREE.Vector3(); camera.getWorldPosition(cameraWorldPos);
             const localPos = anchorGroup.group.worldToLocal(cameraWorldPos);
             
-            db.set({ x: localPos.x, y: localPos.y, z: localPos.z }); 
+            // 寫入並變更狀態為 locked
+            db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z }); 
             
             statusText.innerText = "🔒 【密】相對座標點已成功鎖定！";
             statusText.style.background = "rgba(52, 211, 153, 0.95)"; statusText.style.color = "#022c22"; statusText.style.fontWeight = "bold";
             setTimeout(() => {
               statusText.style.background = "rgba(0,0,0,0.5)"; statusText.style.color = "#34d399"; statusText.style.fontWeight = "normal";
-              if (isTargetTracked) statusText.innerText = "牌盒已鎖定。可隨時點擊右下角確認錨點";
+              if (isTargetTracked) statusText.innerText = "【系統就緒】請對準牌盒。點擊右下角確認錨點";
             }, 2200);
             if(navigator.vibrate) navigator.vibrate([40, 40]);
           } else {
@@ -205,15 +209,22 @@
           }
         });
 
-        // 觀眾端：監聽 Firebase 資料
+        // 觀眾接收端：實時狀態機監聽
         if (myRole === 'audience') {
           db.on('value', (snapshot) => { 
             const data = snapshot.val(); 
-            if (data && typeof data.x === 'number' && typeof data.y === 'number' && typeof data.z === 'number') {
+            if (data && data.status === "locked" && typeof data.x === 'number') {
+              // 唯有真正實時鎖定，才允許同步座標並啟動 UI
               targetMarker.position.set(data.x, data.y, data.z);
               isDataSynced = true;
-              refreshAudienceUI(); // 隔空收到魔術師訊號，立刻刷新解鎖
+            } else {
+              // 歷史資料或初始化階段，一律強制清空鎖定
+              isDataSynced = false;
+              appState = 0;
+              document.getElementById('radar-sweep').style.opacity = '0';
+              hasSweptOnce = false;
             } 
+            refreshAudienceUI();
           });
           
           let btnFill = document.getElementById('btn-fill');
@@ -223,7 +234,7 @@
         }
 
         await mindartThree.start();
-        statusText.innerText = "系統就緒！請對準桌上的 Bicycle 牌盒...";
+        statusText.innerText = "正在捕捉 Bicycle 牌盒特徵...";
         if (myRole === 'audience') refreshAudienceUI();
         
         let radarSweep = document.getElementById('radar-sweep');
@@ -247,14 +258,13 @@
               const radarAngle = ((timestamp % 2400) / 2400) * Math.PI * 2;
               radarSweep.style.transform = `rotate(${radarAngle}rad)`;
               
-              // 【🔥 核心關鍵修復】：強制在隱形狀態下更新矩陣計算，打破 Three.js 隱形死結！
               targetMarker.updateMatrixWorld(true);
               
               const vector = new THREE.Vector3(); 
               targetMarker.getWorldPosition(vector); 
               vector.project(camera);
               
-              if (vector.z < 1) { // 確保目標在相機前方
+              if (vector.z < 1) { 
                 let targetAngle = Math.atan2(vector.x, vector.y); if (targetAngle < 0) targetAngle += Math.PI * 2;
                 let angleDiff = Math.abs(radarAngle - targetAngle); if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
                 
@@ -264,7 +274,6 @@
                 }
               }
               
-              // 控制閃爍與可見度
               if (isFlashing) {
                 targetMarker.visible = true; let phase = Math.floor((timestamp - flashStartTime) / 120);
                 if (phase === 0 || phase === 2) { targetMarker.scale.set(2.2, 2.2, 2.2); dotMat.opacity = 1.0; ringMat.opacity = 1.0; } 
