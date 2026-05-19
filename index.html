@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V35.0 (終極演演出版)</title>
+  <title>AR 空間雙機連線羅盤 V36.0 (頂級演出版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,26 +14,40 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 頂部狀態列：雙端完全相同 */
-    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.5); font-weight: bold; pointer-events: auto; transition: all 0.3s; }
+    /* 頂部狀態列：雙端完全一致 */
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; }
     
-    /* 雷達掃描特效 */
-    #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.1); display: none; }
-    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.6) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
+    /* 雷達掃描特效 (持續旋轉) */
+    #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
+    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     
     /* 圓形 SCAN 按鈕 */
-    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.85); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; overflow: hidden; box-shadow: 0 0 15px rgba(52, 211, 153, 0.3); transition: transform 0.2s; }
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; letter-spacing: 1px; }
     #circle-btn:active { transform: translate(-50%, -50%) scale(0.9); }
 
-    /* 🤫 魔術師專用隱形錨定區：完全透明、無邊框、高層級 */
-    #magician-zone { position: absolute; bottom: 0; right: 0; width: 130px; height: 130px; pointer-events: auto; background: transparent; z-index: 9999; }
+    /* 🤫 魔術師專用隱形無痕觸控區 */
+    #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
+
+    /* 🧙‍♂️ 魔術師起始 QR Code 遮罩頁面 */
+    #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; font-family: sans-serif; pointer-events: auto; }
+    #qr-overlay h2 { margin-bottom: 5px; color: #fff; }
+    #qr-overlay p { margin-bottom: 25px; font-size: 14px; color: #a7f3d0; }
+    #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
+    #qr-footer { margin-top: 30px; font-size: 12px; color: #6ee7b7; opacity: 0.7; }
   </style>
 </head>
 <body>
 
+  <div id="qr-overlay">
+    <h2>🧙‍♂️ 魔術師演出主控台</h2>
+    <p>請讓觀眾的手機掃描下方條碼：</p>
+    <img id="qr-image" src="" alt="Audience QR Code">
+    <div id="qr-footer">💡 觀眾掃描完成後，【雙擊螢幕任意處】正式開始表演</div>
+  </div>
+
   <div id="ui-layer">
-    <div id="status-text">偵測空間維度中...</div>
+    <div id="status-text">Searching....</div>
     
     <div id="radar-container"><div id="radar-sweep"></div></div>
     <div id="circle-btn">SCAN</div>
@@ -49,24 +63,29 @@
       
       <a-entity id="target-marker" visible="false">
         <a-sphere position="0 0 0.5" radius="0.04" material="color: #00ff00;"></a-sphere>
-        <a-cylinder position="0 0 0.25" radius="0.008" height="0.5" rotation="90 0 0" material="color: #00ff00; opacity: 0.8; transparent: true"></a-cylinder>
+        <a-cylinder position="0 0 0.25" radius="0.008" height="0.5" rotation="90 0 0" material="color: #00ff00; opacity: 0.7; transparent: true"></a-cylinder>
       </a-entity>
     </a-entity>
   </a-scene>
 
   <script>
-    // --- 初始化 Firebase ---
+    // --- 系統架構初始化 ---
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
     
-    // UI 與 AR 宣告
+    const urlParams = new URLSearchParams(window.location.search);
+    const myRole = urlParams.get('role') || 'audience'; 
+    
+    // UI 元件
     const statusText = document.getElementById('status-text');
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
     const scanBtn = document.getElementById('circle-btn');
     const magicianZone = document.getElementById('magician-zone');
+    const qrOverlay = document.getElementById('qr-overlay');
     
+    // AR 元件
     const targetAnchor = document.getElementById('target-anchor');
     const targetMarker = document.getElementById('target-marker');
     const hitPlane = document.getElementById('hit-plane');
@@ -74,38 +93,82 @@
     
     let isTargetTracked = false;
     let magicData = null; 
-    let scanTimer = null; // 長按計時器
+    let scanTimer = null; 
+    let isRadarActive = false; // 是否已成功啟動永久雷達模式
+    let blinkInterval = null;  // 標記點同步閃爍計時器
 
-    // 同步雲端座標
+    // --- 1. 魔術師 QR Code 歡迎幕邏輯 ---
+    if (myRole === 'magician') {
+      magicianZone.style.display = 'block'; // 開啟隱形秘密點擊區
+      
+      // 動態產生觀眾端的網址（自動去除魔術師參數）
+      const audienceUrl = window.location.origin + window.location.pathname;
+      document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
+      qrOverlay.style.display = 'flex';
+      
+      // 雙擊畫面隱藏歡迎幕並重置資料庫
+      qrOverlay.addEventListener('dblclick', () => {
+        qrOverlay.style.display = 'none';
+        db.set({ status: "ready", x: 0, y: 0, z: 0 });
+      });
+    }
+
+    // --- 2. 監聽雲端資料變更 ---
     db.on('value', (snapshot) => {
       magicData = snapshot.val();
+      updateUIState(); // 資料一變動，立刻更新介面狀態
     });
 
-    // --- AR 狀態監聽 ---
+    // --- 3. AR 追蹤狀態控制中心 ---
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
-      statusText.innerText = "已鎖定黑桃 Q！請長按 SCAN 進行深度掃描";
-      statusText.style.color = "#34d399";
-      scanBtn.style.display = 'flex'; 
+      updateUIState();
     });
     
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      statusText.innerText = "請將相機對準黑桃 Q...";
+      statusText.innerText = "Searching....";
       statusText.style.color = "#34d399";
       scanBtn.style.display = 'none';
       cancelScan();
-      targetMarker.setAttribute('visible', 'false'); // 移開時暫時隱藏
+      
+      // 移開黑桃 Q 時，停止閃爍並隱藏標記
+      if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+      targetMarker.setAttribute('visible', 'false');
     });
 
-    // --- 🤫 魔術師：偷放點邏輯 (點擊右下角無痕區) ---
-    magicianZone.addEventListener('click', (e) => {
+    // 核心 UI 狀態機：完美控管文字與 SCAN 按鈕顯示時機
+    function updateUIState() {
       if (!isTargetTracked) return;
+
+      // 如果已經啟動了永久雷達掃描模式
+      if (isRadarActive) {
+        statusText.innerText = "Press SCAN to find your card"; // 保持原樣或自訂
+        statusText.style.color = "#34d399";
+        targetMarker.setAttribute('visible', 'true');
+        if (!blinkInterval) startRadarBlinkingEffect();
+        return;
+      }
+
+      // 檢查魔術師是否已經秘密鎖定
+      if (magicData && magicData.status === "locked") {
+        statusText.innerText = "Press SCAN to find your card";
+        statusText.style.color = "#34d399";
+        scanBtn.style.display = 'flex'; // 兩端同時展現 SCAN 按鈕
+      } else {
+        statusText.innerText = "Searching....";
+        statusText.style.color = "#34d399";
+        scanBtn.style.display = 'none';
+      }
+    }
+
+    // --- 4. 🤫 魔術師：秘密無痕鎖定座標 ---
+    magicianZone.addEventListener('click', (e) => {
+      if (!isTargetTracked || (magicData && magicData.status === "locked")) return;
       
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
-      // 使用螢幕正中央 (0,0) 作為發射點
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera);
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); // 抓取螢幕正中央
       
       const hitMesh = hitPlane.getObject3D('mesh');
       const intersects = raycaster.intersectObject(hitMesh, true);
@@ -113,72 +176,80 @@
       if (intersects.length > 0) {
         const point = intersects[0].point;
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        localPos.z = 0; // 鎖死在牌面上
+        localPos.z = 0; 
         
-        // 偷偷寫入資料庫，畫面上完全不漏痕跡
+        // 悄悄寫入雲端
         db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z });
-        
-        // 手機輕微震動提示魔術師「成功鎖定」，觀眾不會發現
-        if(navigator.vibrate) navigator.vibrate(40);
+        if(navigator.vibrate) navigator.vibrate(40); // 秘密震動
       }
     });
 
-    // --- 👁️ 雙端共用：SCAN 按鈕長按邏輯 ---
+    // --- 5. 長按 SCAN 蓄力邏輯 ---
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
       if (!isTargetTracked) return;
 
-      // 啟動雷達視覺特效
       radarContainer.style.display = 'block';
       radarSweep.style.opacity = '1';
-      statusText.innerText = "⚡ 正在解構黑桃 Q 空間能量...請勿放開";
+      statusText.innerText = "Analyzing space dimension...";
       statusText.style.color = "#facc15";
 
-      // 設定長按 2 秒 (2000毫秒) 觸發成功
       scanTimer = setTimeout(() => {
         executeScanSuccess();
-      }, 2000);
+      }, 2000); // 蓄力長按 2 秒
     }
 
     function cancelScan() {
-      if (scanTimer) {
+      if (scanTimer && !isRadarActive) {
         clearTimeout(scanTimer);
         scanTimer = null;
         radarSweep.style.opacity = '0';
         radarContainer.style.display = 'none';
         if (isTargetTracked) {
-          statusText.innerText = "❌ 掃描中斷！請長按按鈕不要放開";
-          statusText.style.color = "#ef4444";
+          statusText.innerText = "Press SCAN to find your card";
+          statusText.style.color = "#34d399";
         }
       }
     }
 
+    // 蓄力成功：進入永續雷達與標記點雙閃爍模式
     function executeScanSuccess() {
       scanTimer = null;
-      radarSweep.style.opacity = '0';
-      radarContainer.style.display = 'none';
-      scanBtn.style.display = 'none'; // 掃描成功後隱藏按鈕
+      isRadarActive = true; 
+      scanBtn.style.display = 'none'; // 隱藏按鈕
 
-      if (magicData && magicData.status === "locked") {
-        // 成功顯現綠色圖釘
+      // 設定定位點座標
+      if (magicData) {
         targetMarker.setAttribute('position', `${magicData.x} ${magicData.y} ${magicData.z}`);
-        targetMarker.setAttribute('visible', 'true');
-        statusText.innerText = "🎯 發現殘留精神標記！座標已成功顯現！";
-        statusText.style.color = "#00ff00";
-        if(navigator.vibrate) navigator.vibrate([80, 50, 80]);
-      } else {
-        // 雲端還沒有資料
-        statusText.innerText = "掃描完成。該空間純淨，未發現任何標記。";
-        statusText.style.color = "#9ca3af";
-        setTimeout(() => { if(isTargetTracked) scanBtn.style.display = 'flex'; }, 2000);
       }
+      targetMarker.setAttribute('visible', 'true');
+      
+      // 啟動與雷達旋轉週期(1.5秒)完美咬合的雙閃爍特效
+      startRadarBlinkingEffect();
+      if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
 
-    // 綁定長按事件（相容手機觸控與電腦滑鼠）
+    // 模擬雷達線掃過標記點，使其「閃爍2次」的週期循環
+    function startRadarBlinkingEffect() {
+      if (blinkInterval) clearInterval(blinkInterval);
+      
+      // 每 1500 毫秒（跟 CSS spin 動畫的 1.5s 完全同步）觸發一次閃爍
+      blinkInterval = setInterval(() => {
+        if (!isTargetTracked) return;
+        
+        // 第一次閃爍
+        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 0);
+        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 120);
+        // 第二次閃爍
+        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 240);
+        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 360);
+      }, 1500);
+    }
+
+    // 綁定長按與觸控事件
     scanBtn.addEventListener('touchstart', startScan, { passive: false });
     scanBtn.addEventListener('touchend', cancelScan);
     scanBtn.addEventListener('touchcancel', cancelScan);
-
     scanBtn.addEventListener('mousedown', startScan);
     scanBtn.addEventListener('mouseup', cancelScan);
     scanBtn.addEventListener('mouseleave', cancelScan);
