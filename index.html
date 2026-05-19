@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.3 (對向180度校正版)</title>
+  <title>AR 空間雙機連線羅盤 V37.4 (螢幕比例絕對對位版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,33 +14,27 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 🎯 頂部狀態列 */
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; transition: color 0.3s; }
     
-    /* 🔭 四象限瞄準鏡準心 */
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
     .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); transform: translateX(-0.5px); }
     .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); transform: translateY(-0.5px); }
 
-    /* 雷達掃描特效 */
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     
-    /* SCAN 按鈕 */
     #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; letter-spacing: 1px; z-index: 10006; }
     #circle-btn:active { transform: translate(-50%, -50%) scale(0.9); }
 
     /* 🤫 魔術師專用隱形無痕觸控區 */
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
 
-    /* 🧙‍♂️ 魔術師起始 QR Code 遮罩頁面 */
     #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; font-family: sans-serif; pointer-events: auto; padding-top: 60px; box-sizing: border-box; }
     #qr-overlay h2 { margin-bottom: 5px; color: #fff; font-size: 20px; }
     #qr-overlay p { margin-bottom: 25px; font-size: 14px; color: #a7f3d0; }
     #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
     #qr-footer { margin-top: 30px; font-size: 13px; color: #6ee7b7; opacity: 0.8; text-align: center; padding: 0 20px; font-weight: bold; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
   </style>
 </head>
 <body>
@@ -106,7 +100,6 @@
     let isRadarActive = false; 
     let blinkInterval = null;  
 
-    // --- 1. 魔術師專屬初始化與單擊開局 ---
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
       
@@ -126,15 +119,16 @@
       crosshairContainer.style.display = 'block';
     }
 
-    // --- 2. 監聽雲端資料變更 ---
     db.on('value', (snapshot) => {
       magicData = snapshot.val();
+      // 🚀 核心改動：當資料變更時，即時將雲端傳來的 2D 螢幕比例反向投影為 AR 實體空間座標
+      projectScreenPercentToARSpace();
       updateUIState(); 
     });
 
-    // --- 3. AR 追蹤狀態控制中心 ---
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
+      projectScreenPercentToARSpace();
       updateUIState();
     });
     
@@ -169,13 +163,23 @@
       scanBtn.style.display = 'flex'; 
     }
 
-    // --- 4. 🤫 魔術師：精確鎖定座標並進行「180度對向反轉儲存」 ---
-    magicianZone.addEventListener('click', (e) => {
-      if (!isTargetTracked) return;
+    // 🚀 核心修正：將 2D 螢幕比例動態轉換回 3D 空間，完全無視鬼牌旋轉角度
+    function projectScreenPercentToARSpace() {
+      if (!isTargetTracked || !magicData || magicData.status !== "locked") return;
+
+      let targetScreenX = magicData.screenX;
+      let targetScreenY = magicData.screenY;
+
+      // 🔄 如果是觀眾端（對向視角），將接收到的螢幕 2D 比例進行水平與垂直對稱翻轉
+      if (myRole === 'audience') {
+        targetScreenX = -targetScreenX;
+        targetScreenY = -targetScreenY;
+      }
 
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
+      // 將翻轉後的螢幕比例餵給相機，直接發射物理射線
+      raycaster.setFromCamera(new THREE.Vector2(targetScreenX, targetScreenY), sceneEl.camera); 
       
       const hitMesh = hitPlane.getObject3D('mesh');
       const intersects = raycaster.intersectObject(hitMesh, true);
@@ -183,18 +187,24 @@
       if (intersects.length > 0) {
         const point = intersects[0].point;
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        
-        // 🚀 核心矩陣變更：觀眾在對向，因此我們把 X 與 Y 座標「正負號對調 (-localPos.x, -localPos.y)」
-        // 這樣觀眾讀取到該座標後，顯示在他們的手機上時，實體位置會跟魔術師點擊的完全一致！
-        db.set({ 
-          status: "locked", 
-          x: -localPos.x, 
-          y: -localPos.y, 
-          z: 0 
-        });
-        
-        if (navigator.vibrate) navigator.vibrate(60); 
+        // 動態更新圖釘的實體位置
+        targetMarker.setAttribute('position', `${localPos.x} ${localPos.y} 0`);
       }
+    }
+
+    // --- 4. 🤫 魔術師：只紀錄點擊時的「螢幕 2D 比例」 ---
+    magicianZone.addEventListener('click', (e) => {
+      if (!isTargetTracked) return;
+
+      // 🚀 不管 AR 世界坐標系如何扭曲，只記錄魔術師準心在螢幕上的 2D 歸一化座標 (0, 0 即為螢幕正中央)
+      // 這邊設為 (0,0) 代表以魔術師螢幕正中央瞄準鏡對準的地方為準
+      db.set({ 
+        status: "locked", 
+        screenX: 0, 
+        screenY: 0
+      });
+      
+      if (navigator.vibrate) navigator.vibrate(60); 
     });
 
     // --- 5. 長按 SCAN 蓄力邏輯 ---
@@ -228,11 +238,11 @@
     function executeScanSuccess() {
       scanTimer = null;
 
-      if (magicData && magicData.status === "locked" && magicData.x !== undefined) {
+      if (magicData && magicData.status === "locked") {
         isRadarActive = true; 
         scanBtn.style.display = 'none'; 
 
-        targetMarker.setAttribute('position', `${magicData.x} ${magicData.y} ${magicData.z}`);
+        projectScreenPercentToARSpace(); // 再次確保落點精確
         targetMarker.setAttribute('visible', 'true');
         
         startRadarBlinkingEffect();
