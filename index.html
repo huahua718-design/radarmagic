@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V34.0 (終極完全體)</title>
+  <title>AR 空間雙機連線羅盤 V35.0 (終極演演出版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,113 +14,97 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 共用狀態列 */
+    /* 頂部狀態列：雙端完全相同 */
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 14px; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.5); font-weight: bold; pointer-events: auto; transition: all 0.3s; }
     
-    /* 🧙‍♂️ 魔術師專用 UI */
-    #crosshair { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; }
-    .line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.8); }
-    .line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.8); }
-    .center-circle { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; border: 1px solid rgba(52, 211, 153, 0.9); border-radius: 50%; }
-    #magician-zone { position: absolute; bottom: 0; right: 0; width: 150px; height: 150px; pointer-events: auto; display: none; }
-
-    /* 👁️ 觀眾專用 UI */
+    /* 雷達掃描特效 */
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.1); display: none; }
-    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.6) 100%); opacity: 0; transition: opacity 0.5s ease; animation: spin 2s linear infinite; }
+    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.05) 60%, rgba(52, 211, 153, 0.6) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     
-    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.8); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; overflow: hidden; box-shadow: 0 0 15px rgba(52, 211, 153, 0.3); }
-    #circle-btn:active { background: rgba(52, 211, 153, 0.3); }
+    /* 圓形 SCAN 按鈕 */
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90px; height: 90px; border-radius: 50%; background: rgba(2, 44, 34, 0.85); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; overflow: hidden; box-shadow: 0 0 15px rgba(52, 211, 153, 0.3); transition: transform 0.2s; }
+    #circle-btn:active { transform: translate(-50%, -50%) scale(0.9); }
+
+    /* 🤫 魔術師專用隱形錨定區：完全透明、無邊框、高層級 */
+    #magician-zone { position: absolute; bottom: 0; right: 0; width: 130px; height: 130px; pointer-events: auto; background: transparent; z-index: 9999; }
   </style>
 </head>
 <body>
+
   <div id="ui-layer">
-    <div id="status-text">相機載入中...</div>
-    
-    <div id="crosshair"><div class="line-v"></div><div class="line-h"></div><div class="center-circle"></div></div>
-    <div id="magician-zone"></div>
+    <div id="status-text">偵測空間維度中...</div>
     
     <div id="radar-container"><div id="radar-sweep"></div></div>
     <div id="circle-btn">SCAN</div>
+    
+    <div id="magician-zone"></div>
   </div>
 
   <a-scene mindar-image="imageTargetSrc: targets.mind; filterMinCF: 0.1; filterBeta: 10" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
     
     <a-entity mindar-image-target="targetIndex: 0" id="target-anchor">
-      <a-box id="debug-box" position="0 0 0" scale="1 1.4 0.1" material="color: #3b82f6; wireframe: true; wireframeLinewidth: 2"></a-box>
-      
       <a-plane id="hit-plane" position="0 0 0" scale="15 15 1" material="transparent: true; opacity: 0;"></a-plane>
       
       <a-entity id="target-marker" visible="false">
-        <a-sphere position="0 0 0.5" radius="0.05" material="color: #00ff00;"></a-sphere>
-        <a-cylinder position="0 0 0.25" radius="0.01" height="0.5" rotation="90 0 0" material="color: #00ff00; opacity: 0.8; transparent: true"></a-cylinder>
+        <a-sphere position="0 0 0.5" radius="0.04" material="color: #00ff00;"></a-sphere>
+        <a-cylinder position="0 0 0.25" radius="0.008" height="0.5" rotation="90 0 0" material="color: #00ff00; opacity: 0.8; transparent: true"></a-cylinder>
       </a-entity>
     </a-entity>
   </a-scene>
 
   <script>
-    // --- 系統初始化 ---
+    // --- 初始化 Firebase ---
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
     
-    const urlParams = new URLSearchParams(window.location.search);
-    const myRole = urlParams.get('role') || 'audience'; 
-    
-    // UI 元件
+    // UI 與 AR 宣告
     const statusText = document.getElementById('status-text');
-    const crosshair = document.getElementById('crosshair');
-    const magicianZone = document.getElementById('magician-zone');
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
     const scanBtn = document.getElementById('circle-btn');
+    const magicianZone = document.getElementById('magician-zone');
     
-    // AR 元件
     const targetAnchor = document.getElementById('target-anchor');
     const targetMarker = document.getElementById('target-marker');
     const hitPlane = document.getElementById('hit-plane');
     const sceneEl = document.querySelector('a-scene');
     
     let isTargetTracked = false;
-    let magicData = null; // 儲存 Firebase 傳來的座標
+    let magicData = null; 
+    let scanTimer = null; // 長按計時器
 
-    // --- 角色介面佈置 ---
-    if (myRole === 'magician') {
-      crosshair.style.display = 'block';
-      magicianZone.style.display = 'block';
-      db.set({ status: "ready", x: 0, y: 0, z: 0 }); // 重置資料庫
-    }
+    // 同步雲端座標
+    db.on('value', (snapshot) => {
+      magicData = snapshot.val();
+    });
 
-    // --- AR 追蹤邏輯 ---
+    // --- AR 狀態監聽 ---
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
-      if (myRole === 'magician') {
-        statusText.innerText = "【追蹤成功】請將準心對準牌盒，點擊右下角發射";
-        statusText.style.color = "#00ff00";
-      } else {
-        statusText.innerText = "空間特徵吻合！請點擊 SCAN 開始掃描";
-        scanBtn.style.display = 'flex'; // 顯示掃描按鈕
-      }
+      statusText.innerText = "已鎖定黑桃 Q！請長按 SCAN 進行深度掃描";
+      statusText.style.color = "#34d399";
+      scanBtn.style.display = 'flex'; 
     });
     
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      statusText.innerText = "請將相機對準牌盒...";
+      statusText.innerText = "請將相機對準黑桃 Q...";
       statusText.style.color = "#34d399";
-      if (myRole === 'audience') {
-        scanBtn.style.display = 'none';
-        radarSweep.style.opacity = '0';
-        radarContainer.style.display = 'none';
-      }
+      scanBtn.style.display = 'none';
+      cancelScan();
+      targetMarker.setAttribute('visible', 'false'); // 移開時暫時隱藏
     });
 
-    // --- 魔術師：發射邏輯 ---
+    // --- 🤫 魔術師：偷放點邏輯 (點擊右下角無痕區) ---
     magicianZone.addEventListener('click', (e) => {
-      if (myRole !== 'magician' || !isTargetTracked) return;
+      if (!isTargetTracked) return;
       
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
+      // 使用螢幕正中央 (0,0) 作為發射點
       raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera);
       
       const hitMesh = hitPlane.getObject3D('mesh');
@@ -129,60 +113,75 @@
       if (intersects.length > 0) {
         const point = intersects[0].point;
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        localPos.z = 0; // 鎖死在牌盒表面
+        localPos.z = 0; // 鎖死在牌面上
         
-        targetMarker.setAttribute('position', `${localPos.x} ${localPos.y} ${localPos.z}`);
-        targetMarker.setAttribute('visible', 'true');
-        
-        statusText.innerText = `✅ 圖釘已發射至雲端！`;
+        // 偷偷寫入資料庫，畫面上完全不漏痕跡
         db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z });
-        if(navigator.vibrate) navigator.vibrate(50);
+        
+        // 手機輕微震動提示魔術師「成功鎖定」，觀眾不會發現
+        if(navigator.vibrate) navigator.vibrate(40);
       }
     });
 
-    // --- 觀眾：接收與掃描邏輯 ---
-    if (myRole === 'audience') {
-      // 1. 隨時監聽魔術師的動靜
-      db.on('value', (snapshot) => {
-        const data = snapshot.val();
-        if (data && data.status === "locked") {
-          magicData = data; // 存起來，等觀眾按下掃描才顯示
-        } else {
-          magicData = null;
-          targetMarker.setAttribute('visible', 'false');
-        }
-      });
+    // --- 👁️ 雙端共用：SCAN 按鈕長按邏輯 ---
+    function startScan(e) {
+      if (e.cancelable) e.preventDefault();
+      if (!isTargetTracked) return;
 
-      // 2. 觀眾點擊 SCAN 按鈕
-      scanBtn.addEventListener('click', () => {
-        if (!isTargetTracked) return;
-        
-        scanBtn.style.display = 'none';
-        radarContainer.style.display = 'block';
-        radarSweep.style.opacity = '1';
-        statusText.innerText = "⚡ 雷達深度掃描中...";
-        statusText.style.color = "#facc15";
-        
-        // 模擬掃描 2 秒鐘
-        setTimeout(() => {
-          radarSweep.style.opacity = '0'; // 關閉雷達光
-          
-          if (magicData) {
-            // 魔術師已經射了圖釘，顯示出來！
-            targetMarker.setAttribute('position', `${magicData.x} ${magicData.y} ${magicData.z}`);
-            targetMarker.setAttribute('visible', 'true');
-            statusText.innerText = "🎯 發現目標！這是魔術師選的位置！";
-            statusText.style.color = "#ef4444";
-            if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-          } else {
-            // 魔術師還沒射
-            statusText.innerText = "空間中目前沒有發現任何目標。";
-            statusText.style.color = "#9ca3af";
-            setTimeout(() => { scanBtn.style.display = 'flex'; }, 2000); // 2秒後重新顯示按鈕
-          }
-        }, 2000);
-      });
+      // 啟動雷達視覺特效
+      radarContainer.style.display = 'block';
+      radarSweep.style.opacity = '1';
+      statusText.innerText = "⚡ 正在解構黑桃 Q 空間能量...請勿放開";
+      statusText.style.color = "#facc15";
+
+      // 設定長按 2 秒 (2000毫秒) 觸發成功
+      scanTimer = setTimeout(() => {
+        executeScanSuccess();
+      }, 2000);
     }
+
+    function cancelScan() {
+      if (scanTimer) {
+        clearTimeout(scanTimer);
+        scanTimer = null;
+        radarSweep.style.opacity = '0';
+        radarContainer.style.display = 'none';
+        if (isTargetTracked) {
+          statusText.innerText = "❌ 掃描中斷！請長按按鈕不要放開";
+          statusText.style.color = "#ef4444";
+        }
+      }
+    }
+
+    function executeScanSuccess() {
+      scanTimer = null;
+      radarSweep.style.opacity = '0';
+      radarContainer.style.display = 'none';
+      scanBtn.style.display = 'none'; // 掃描成功後隱藏按鈕
+
+      if (magicData && magicData.status === "locked") {
+        // 成功顯現綠色圖釘
+        targetMarker.setAttribute('position', `${magicData.x} ${magicData.y} ${magicData.z}`);
+        targetMarker.setAttribute('visible', 'true');
+        statusText.innerText = "🎯 發現殘留精神標記！座標已成功顯現！";
+        statusText.style.color = "#00ff00";
+        if(navigator.vibrate) navigator.vibrate([80, 50, 80]);
+      } else {
+        // 雲端還沒有資料
+        statusText.innerText = "掃描完成。該空間純淨，未發現任何標記。";
+        statusText.style.color = "#9ca3af";
+        setTimeout(() => { if(isTargetTracked) scanBtn.style.display = 'flex'; }, 2000);
+      }
+    }
+
+    // 綁定長按事件（相容手機觸控與電腦滑鼠）
+    scanBtn.addEventListener('touchstart', startScan, { passive: false });
+    scanBtn.addEventListener('touchend', cancelScan);
+    scanBtn.addEventListener('touchcancel', cancelScan);
+
+    scanBtn.addEventListener('mousedown', startScan);
+    scanBtn.addEventListener('mouseup', cancelScan);
+    scanBtn.addEventListener('mouseleave', cancelScan);
   </script>
 </body>
 </html>
