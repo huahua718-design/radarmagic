@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.0 (瞄準準心+巨型圖釘版)</title>
+  <title>AR 空間雙機連線羅盤 V37.1 (極致防錯版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,10 +14,10 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 🎯 頂部狀態列：提升層級，確保從第一秒看到的畫面完全一致 */
+    /* 🎯 頂部狀態列 */
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; }
     
-    /* 🔭 修改1：加入分割四個象限的瞄準鏡準心 (預設隱藏，與狀態列同步顯示) */
+    /* 🔭 四象限瞄準鏡準心 */
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
     .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); transform: translateX(-0.5px); }
     .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); transform: translateY(-0.5px); }
@@ -80,7 +80,6 @@
   </a-scene>
 
   <script>
-    // --- 系統架構初始化 ---
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
@@ -88,16 +87,14 @@
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
     
-    // UI 元件
     const statusText = document.getElementById('status-text');
-    const crosshairContainer = document.getElementById('crosshair-container'); // 修改1: 準心 container
+    const crosshairContainer = document.getElementById('crosshair-container'); 
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
     const scanBtn = document.getElementById('circle-btn');
     const magicianZone = document.getElementById('magician-zone');
     const qrOverlay = document.getElementById('qr-overlay');
     
-    // AR 元件
     const targetAnchor = document.getElementById('target-anchor');
     const targetMarker = document.getElementById('target-marker');
     const hitPlane = document.getElementById('hit-plane');
@@ -106,29 +103,27 @@
     let isTargetTracked = false;
     let magicData = null; 
     let scanTimer = null; 
-    let isRadarActive = false; // 是否已成功啟動永久雷達模式
-    let blinkInterval = null;  // 標記點同步閃爍計時器
+    let isRadarActive = false; 
+    let blinkInterval = null;  
 
     // --- 1. 魔術師專屬初始化與單擊開局 ---
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
-      db.set({ status: "ready", x: 0, y: 0, z: 0 }); // 🚀 關鍵：立刻強制清空雲端狀態
       
       const audienceUrl = window.location.origin + window.location.pathname;
       document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
       qrOverlay.style.display = 'flex';
-      
-      // 觀眾端在載入時就顯示準心，魔術師端則在點擊 QR Code 後顯示
       crosshairContainer.style.display = 'none';
 
       function triggerStart() {
         qrOverlay.style.display = 'none';
-        crosshairContainer.style.display = 'block'; // 修改1: 點擊開局後顯示準心
+        crosshairContainer.style.display = 'block'; 
+        // 🚀 優化：改在「點擊開局」時才清除舊資料，防止背景網頁隨機重新整理把魔術洗掉
+        db.set({ status: "ready", x: 0, y: 0, z: 0 });
         if(navigator.vibrate) navigator.vibrate(60); 
       }
       qrOverlay.addEventListener('click', triggerStart);
     } else {
-      // 觀眾端預設直接顯示準心
       crosshairContainer.style.display = 'block';
     }
 
@@ -146,17 +141,14 @@
     
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      updateUIState(); // 丟失時交給狀態機統一重置
+      updateUIState(); 
       cancelScan();
-      
-      // 移開時，停止閃爍並隱藏標記
       if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
       targetMarker.setAttribute('visible', 'false');
     });
 
-    // 嚴格介面狀態機：保證兩端不管在何種情境下，字樣與按鈕皆完全同歩
+    // 嚴格介面狀態機
     function updateUIState() {
-      // 狀況 A：如果沒有對準/識別到目標，一律保持 Searching.... 準心持續存在於 UI 層
       if (!isTargetTracked) {
         statusText.innerText = "Searching....";
         statusText.style.color = "#34d399";
@@ -164,7 +156,6 @@
         return;
       }
 
-      // 狀況 B：有對準，且已經成功發動永久雷達模式 (巨型圖釘閃爍模式)
       if (isRadarActive) {
         statusText.innerText = "Press SCAN to find your card"; 
         statusText.style.color = "#34d399";
@@ -173,37 +164,52 @@
         return;
       }
 
-      // 狀況 C：有對準，檢查魔術師是否鎖定座標
       if (magicData && magicData.status === "locked") {
         statusText.innerText = "Press SCAN to find your card";
         statusText.style.color = "#34d399";
-        scanBtn.style.display = 'flex'; // 兩端同時展現 SCAN 按鈕
+        scanBtn.style.display = 'flex'; 
       } else {
-        // 魔術師尚未鎖定，雙端對準時皆保持 Searching.... 且不給按鈕
         statusText.innerText = "Searching....";
         statusText.style.color = "#34d399";
         scanBtn.style.display = 'none';
       }
     }
 
-    // --- 4. 🤫 魔術師：秘密無痕鎖定座標 ---
+    // --- 4. 🤫 魔術師：抗震保底無痕鎖定機制 ---
     magicianZone.addEventListener('click', (e) => {
-      if (!isTargetTracked || (magicData && magicData.status === "locked")) return;
-      
-      const THREE = AFRAME.THREE;
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); // 抓取螢幕正中央
-      
-      const hitMesh = hitPlane.getObject3D('mesh');
-      const intersects = raycaster.intersectObject(hitMesh, true);
-      
-      if (intersects.length > 0) {
-        const point = intersects[0].point;
-        const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        localPos.z = 0; 
+      // 允許魔術師重複點擊修正座標，不再卡死
+      let lockX = 0, lockY = 0, lockZ = 0;
+      let isPrecisionLock = false;
+
+      // 🚀 核心優化：只有在「手穩有瞄準」的情況下計算精密射線，其餘一律採中心保底
+      if (isTargetTracked) {
+        const THREE = AFRAME.THREE;
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
         
-        db.set({ status: "locked", x: localPos.x, y: localPos.y, z: localPos.z });
-        if(navigator.vibrate) navigator.vibrate(40); 
+        const hitMesh = hitPlane.getObject3D('mesh');
+        const intersects = raycaster.intersectObject(hitMesh, true);
+        
+        if (intersects.length > 0) {
+          const point = intersects[0].point;
+          const localPos = targetAnchor.object3D.worldToLocal(point.clone());
+          lockX = localPos.x;
+          lockY = localPos.y;
+          lockZ = 0; 
+          isPrecisionLock = true;
+        }
+      }
+
+      // 🔒 絕對放行：無論有沒有精準對到，資料庫一定會改為 locked，100% 逼出觀眾端的 SCAN 按鈕！
+      db.set({ status: "locked", x: lockX, y: lockY, z: lockZ });
+
+      // 📳 口袋密碼回饋：手穩精密鎖定震 1 下；手晃啟動中央保底震 3 下
+      if (navigator.vibrate) {
+        if (isPrecisionLock) {
+          navigator.vibrate(60); 
+        } else {
+          navigator.vibrate([40, 40, 40, 40, 40]); 
+        }
       }
     });
 
@@ -235,13 +241,11 @@
       }
     }
 
-    // 蓄力成功：進入永續雷達與標記點雙閃爍模式
     function executeScanSuccess() {
       scanTimer = null;
       isRadarActive = true; 
       scanBtn.style.display = 'none'; 
 
-      // 設定巨型圖釘座標 (座標不變，但內部幾何體已放大)
       if (magicData) {
         targetMarker.setAttribute('position', `${magicData.x} ${magicData.y} ${magicData.z}`);
       }
@@ -251,24 +255,19 @@
       if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
     }
 
-    // 模擬雷達線掃過標記點，使其「嗶嗶（閃爍2次）」的週期循環
     function startRadarBlinkingEffect() {
       if (blinkInterval) clearInterval(blinkInterval);
       
-      // 每 1500 毫秒（跟 CSS spin 動畫的 1.5s 完全同步）觸發一次閃爍
       blinkInterval = setInterval(() => {
         if (!isTargetTracked) return;
         
-        // 第一次閃爍
         setTimeout(() => targetMarker.setAttribute('visible', 'false'), 0);
         setTimeout(() => targetMarker.setAttribute('visible', 'true'), 120);
-        // 第二次閃爍
         setTimeout(() => targetMarker.setAttribute('visible', 'false'), 240);
         setTimeout(() => targetMarker.setAttribute('visible', 'true'), 360);
       }, 1500);
     }
 
-    // 綁定長按與觸控事件
     scanBtn.addEventListener('touchstart', startScan, { passive: false });
     scanBtn.addEventListener('touchend', cancelScan);
     scanBtn.addEventListener('touchcancel', cancelScan);
