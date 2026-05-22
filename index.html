@@ -2,329 +2,270 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <title>超自然心靈撲克 (單機 AR + 光感極速消失版)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AR 空間雙機連線羅盤 V37.5 (物理空間絕對重合版)</title>
   
-  <script>
-    window.onerror = function(message, source, lineno, colno, error) {
-      alert("【系統提示】\n錯誤: " + message + "\n行號: " + lineno);
-      return true;
-    };
-  </script>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js" crossorigin="anonymous"></script>
-
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
   <style>
-    /* 🚨 強力鎖定全螢幕，防止 iOS 瀏覽器偏移露白 */
-    html, body { 
-      margin: 0; padding: 0; width: 100%; height: 100%; 
-      overflow: hidden; touch-action: none; 
-      user-select: none; -webkit-user-select: none; 
-      background-color: #000 !important; 
-    }
+    body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    .a-dialog-allow-button { display: none !important; }
-    .mindar-ui-overlay { display: none !important; }
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; transition: color 0.3s; }
     
-    /* 🚨 強制 A-Frame 畫布與手機相機畫面 100% 滿版 */
-    .a-canvas {
-      width: 100% !important; height: 100% !important;
-      top: 0 !important; left: 0 !important; position: absolute !important;
-    }
-    video {
-      width: 100% !important; height: 100% !important;
-      top: 0 !important; left: 0 !important; position: absolute !important;
-      object-fit: cover !important;
-    }
+    #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
+    .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); transform: translateX(-0.5px); }
+    .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); transform: translateY(-0.5px); }
 
-    #root { position: relative; z-index: 10; width: 100vw; height: 100vh; pointer-events: none; }
-    .clickable { pointer-events: auto !important; }
+    #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
+    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; letter-spacing: 1px; z-index: 10006; }
+    #circle-btn:active { transform: translate(-50%, -50%) scale(0.9); }
 
-    /* 撲克牌 3 秒放大至螢幕 90% 的動畫特效 */
-    .card-fullscreen-enter {
-      transform: translate(-50%, -50%) scale(0.3);
-      opacity: 0;
-    }
-    .card-fullscreen-active {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 1;
-      transition: transform 3000ms cubic-bezier(0.16, 1, 0.3, 1), opacity 1000ms ease-out;
-    }
+    #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
 
-    /* 0.1秒極速消失 */
-    .card-vanish-active {
-      transform: translate(-50%, -50%) scale(0.95);
-      opacity: 0;
-      filter: blur(8px);
-      transition: transform 100ms ease-out, opacity 100ms ease-out, filter 100ms ease-out;
-    }
+    #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; font-family: sans-serif; pointer-events: auto; padding-top: 60px; box-sizing: border-box; }
+    #qr-overlay h2 { margin-bottom: 5px; color: #fff; font-size: 20px; }
+    #qr-overlay p { margin-bottom: 25px; font-size: 14px; color: #a7f3d0; }
+    #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
+    #qr-footer { margin-top: 30px; font-size: 13px; color: #6ee7b7; opacity: 0.8; text-align: center; padding: 0 20px; font-weight: bold; animation: pulse 2s infinite; }
   </style>
 </head>
 <body>
-  <div id="root"></div>
 
-  <script type="text/babel">
-    const { useState, useRef, useEffect } = React;
-    const EDGE_TOP = 0, EDGE_RIGHT = 1, EDGE_BOTTOM = 2, EDGE_LEFT = 3;
+  <div id="qr-overlay">
+    <h2>🧙‍♂️ 魔術師演出主控台</h2>
+    <p>請讓觀眾的手機掃描下方條碼：</p>
+    <img id="qr-image" src="" alt="Audience QR Code">
+    <div id="qr-footer">💡 觀眾掃描完成後，【點擊螢幕任意處】正式開始表演</div>
+  </div>
 
-    function MagicCardApp() {
-      // 狀態機：START(初始) -> MAGICIAN(魔術師輸入) -> WAIT_TARGET(等待觀眾點擊) -> REVEAL_AR(AR顯影) -> REVEAL_FULL(脫離AR放大) -> VANISH(極速消失)
-      const [phase, setPhase] = useState('START'); 
-      const [magicianStrokes, setMagicianStrokes] = useState([]);
-      const [finalCard, setFinalCard] = useState(null);
-      const [rotationAngle, setRotationAngle] = useState(0);
+  <div id="ui-layer">
+    <div id="status-text">Searching....</div>
+    
+    <div id="crosshair-container">
+      <div class="crosshair-line-v"></div>
+      <div class="crosshair-line-h"></div>
+    </div>
 
-      const canvasRef = useRef(null);
-      const animFrameRef = useRef(null);
-      const drawState = useRef({ isDrawing: false, startX: 0, startY: 0 });
-      const phaseRef = useRef(phase);
+    <div id="radar-container"><div id="radar-sweep"></div></div>
+    <div id="circle-btn">SCAN</div>
+    
+    <div id="magician-zone"></div>
+  </div>
 
-      useEffect(() => { phaseRef.current = phase; }, [phase]);
+  <a-scene mindar-image="imageTargetSrc: targets.mind; filterMinCF: 0.1; filterBeta: 10" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    
+    <a-entity mindar-image-target="targetIndex: 0" id="target-anchor">
+      <a-plane id="hit-plane" position="0 0 0" scale="15 15 1" material="transparent: true; opacity: 0;"></a-plane>
+      
+      <a-entity id="target-marker" visible="false">
+        <a-sphere position="0 0 1.0" radius="0.08" material="color: #00ff00;"></a-sphere>
+        <a-cylinder position="0 0 0.5" radius="0.016" height="1.0" rotation="90 0 0" material="color: #00ff00; opacity: 0.7; transparent: true"></a-cylinder>
+      </a-entity>
+    </a-entity>
+  </a-scene>
 
-      // 監聽並計算後置鏡頭光強度 (當處於 REVEAL_FULL 放大完成後啟動)
-      useEffect(() => {
-        if (phase !== 'REVEAL_FULL') return;
+  <script>
+    const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database().ref("magic_space_node");
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const myRole = urlParams.get('role') || 'audience'; 
+    
+    const statusText = document.getElementById('status-text');
+    const crosshairContainer = document.getElementById('crosshair-container'); 
+    const radarContainer = document.getElementById('radar-container');
+    const radarSweep = document.getElementById('radar-sweep');
+    const scanBtn = document.getElementById('circle-btn');
+    const magicianZone = document.getElementById('magician-zone');
+    const qrOverlay = document.getElementById('qr-overlay');
+    
+    const targetAnchor = document.getElementById('target-anchor');
+    const targetMarker = document.getElementById('target-marker');
+    const hitPlane = document.getElementById('hit-plane');
+    const sceneEl = document.querySelector('a-scene');
+    
+    let isTargetTracked = false;
+    let magicData = null; 
+    let scanTimer = null; 
+    let isRadarActive = false; 
+    let blinkInterval = null;  
 
-        const timer = setTimeout(() => {
-          // 放大 3 秒完成後，開始高頻率偵測光線
-          const checkLoop = () => {
-            if (phaseRef.current !== 'REVEAL_FULL') return;
+    if (myRole === 'magician') {
+      magicianZone.style.display = 'block'; 
+      
+      const audienceUrl = window.location.origin + window.location.pathname;
+      document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
+      qrOverlay.style.display = 'flex';
+      crosshairContainer.style.display = 'none';
 
-            const video = document.querySelector('body > video');
-            if (video && canvasRef.current) {
-              const ctx = canvasRef.current.getContext('2d', { willReadFrequently: true });
-              ctx.drawImage(video, 0, 0, 64, 64);
-              const data = ctx.getImageData(0, 0, 64, 64).data;
-              
-              let brightness = 0;
-              for (let i = 0; i < data.length; i += 16) {
-                brightness += (data[i] + data[i+1] + data[i+2]) / 3;
-              }
-              const avg = brightness / (data.length / 16);
-
-              // 偵測到完全遮擋（蓋住後鏡頭或拍在桌上）
-              if (avg < 25) {
-                setPhase('VANISH');
-                return; // 停止迴圈
-              }
-            }
-            animFrameRef.current = requestAnimationFrame(checkLoop);
-          };
-          checkLoop();
-        }, 3000); // 3秒放大動畫結束後才開啟偵測，防止剛翻開時手指驚擾
-
-        return () => {
-          clearTimeout(timer);
-          if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-        };
-      }, [phase]);
-
-      // 兩筆劃手勢演算法
-      const calculateCardFromTwoStrokes = (s1, s2) => {
-        let suitBase = 0; let isSecondHalf = false; 
-        if (s1.edge === EDGE_LEFT) { suitBase = 0; isSecondHalf = (s1.dir === -1); } 
-        else if (s1.edge === EDGE_TOP) { suitBase = 13; isSecondHalf = (s1.dir === -1); } 
-        else if (s1.edge === EDGE_RIGHT) { suitBase = 26; isSecondHalf = (s1.dir === -1); } 
-        else if (s1.edge === EDGE_BOTTOM) { suitBase = 39; isSecondHalf = (s1.dir === -1); }
-        
-        let finalIndex = suitBase + (isSecondHalf ? 6 : 0);
-        if (s2.edge === s1.edge) {
-            finalIndex = suitBase + 12;
-        } else {
-            const relEdge = (s2.edge - s1.edge + 4) % 4; 
-            finalIndex += (relEdge - 1) * 2 + (s2.dir === 1 ? 0 : 1);
-        }
-        
-        const cardData = getCardData(finalIndex);
-        setFinalCard(cardData);
-        
-        // 預載圖片至快取
-        const pre = new Image(); pre.src = cardData.imageUrl;
-        
-        // 輸入完成，1秒後揭開黑幕，進入AR準備階段
-        setTimeout(() => setPhase('WAIT_TARGET'), 1000);
-      };
-
-      const getCardData = (index) => {
-        if (index === 52) return { imageUrl: './cards/joker_black.png' };
-        const suits = [{ name: 'club' }, { name: 'diamond' }, { name: 'heart' }, { name: 'spade' }];
-        const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-        const rankNames = { 'J': 'jack', 'Q': 'queen', 'K': 'king', 'A': '1' };
-        const suitIdx = Math.floor(index / 13), valueIdx = index % 13;
-        const suit = suits[suitIdx], rank = values[valueIdx];
-        const fileRank = rankNames[rank] || rank;
-        return { imageUrl: `./cards/${suit.name}_${fileRank}.png` };
-      };
-
-      // 觸控點擊與劃線控制
-      const handlePointerDown = (e) => {
-        if (phase === 'START') return;
-        
-        // 任何時候在畫面上長按 3 秒即可強制重置魔術
-        window.longPressTimer = setTimeout(() => location.reload(), 3000);
-
-        // 觀眾點擊觸發顯影
-        if (phase === 'WAIT_TARGET') {
-          clearTimeout(window.longPressTimer);
-          setPhase('REVEAL_AR');
-          
-          // 3 秒 AR 緩慢顯影過後，自動脫離 AR 進入 HTML 全螢幕放大
-          setTimeout(() => {
-            setPhase('REVEAL_FULL');
-          }, 3000);
-          return;
-        }
-
-        if (phase !== 'MAGICIAN') return;
-        drawState.current = { isDrawing: true, startX: e.clientX, startY: e.clientY, currentX: e.clientX, currentY: e.clientY };
-      };
-
-      const handlePointerMove = (e) => {
-        if (!drawState.current.isDrawing) return;
-        drawState.current.currentX = e.clientX; drawState.current.currentY = e.clientY;
-        if (Math.abs(e.clientX - drawState.current.startX) > 10 || Math.abs(e.clientY - drawState.current.startY) > 10) {
-          clearTimeout(window.longPressTimer);
-        }
-      };
-
-      const handlePointerUp = () => {
-        clearTimeout(window.longPressTimer);
-        if (!drawState.current.isDrawing) return;
-        drawState.current.isDrawing = false;
-
-        const { startX, startY, currentX, currentY } = drawState.current;
-        const dist = Math.sqrt(Math.pow(currentX - startX, 2) + Math.pow(currentY - startY, 2));
-        
-        if (dist > 40 && phase === 'MAGICIAN') {
-          const getQ = (x, y) => {
-            const cx = window.innerWidth/2, cy = window.innerHeight/2;
-            return x < cx ? (y < cy ? 1 : 4) : (y < cy ? 2 : 3);
-          };
-          const sQ = getQ(startX, startY), eQ = getQ(currentX, currentY);
-          let stroke = null;
-          if (sQ === 4 && eQ === 1) stroke = { edge: EDGE_LEFT, dir: 1 };
-          else if (sQ === 1 && eQ === 4) stroke = { edge: EDGE_LEFT, dir: -1 };
-          else if (sQ === 1 && eQ === 2) stroke = { edge: EDGE_TOP, dir: 1 };
-          else if (sQ === 2 && eQ === 1) stroke = { edge: EDGE_TOP, dir: -1 };
-          else if (sQ === 2 && eQ === 3) stroke = { edge: EDGE_RIGHT, dir: 1 };
-          else if (sQ === 3 && eQ === 2) stroke = { edge: EDGE_RIGHT, dir: -1 };
-          else if (sQ === 3 && eQ === 4) stroke = { edge: EDGE_BOTTOM, dir: 1 };
-          else if (sQ === 4 && eQ === 3) stroke = { edge: EDGE_BOTTOM, dir: -1 };
-
-          if (stroke) {
-            const newStrokes = [...magicianStrokes, stroke];
-            setMagicianStrokes(newStrokes);
-            setRotationAngle(prev => prev + (stroke.dir * 90));
-            if (newStrokes.length === 2) {
-              calculateCardFromTwoStrokes(newStrokes[0], newStrokes[1]);
-              setMagicianStrokes([]);
-            }
-          }
-        }
-      };
-
-      const startMagic = () => {
-        if ('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{});
-        setPhase('MAGICIAN');
-      };
-
-      return (
-        <div className="relative w-full h-full fixed inset-0 clickable"
-             onPointerDown={handlePointerDown} 
-             onPointerMove={handlePointerMove}
-             onPointerUp={handlePointerUp}>
-          
-          {/* 用於光感計算的隱藏畫布 */}
-          <canvas ref={canvasRef} className="hidden" />
-
-          {/* 1. 起始畫面：徵求相機授權 */}
-          {phase === 'START' && (
-            <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-950 pointer-events-auto">
-              <div className="w-20 h-20 mb-8 border border-white/10 rounded-full flex items-center justify-center animate-pulse">
-                <div className="w-10 h-10 bg-indigo-500/10 rounded-full"></div>
-              </div>
-              <h1 className="text-white/40 tracking-[0.5em] font-light text-sm mb-12 font-mono">AR MIND SYSTEM</h1>
-              <button 
-                onClick={startMagic}
-                className="px-10 py-4 border border-white/10 bg-white/5 text-white/80 text-xs tracking-[0.2em] rounded-full active:scale-95 transition-transform"
-              >
-                INITIALIZE
-              </button>
-            </div>
-          )}
-
-          {/* 2. 魔術師秘密選擇畫面（相機在背後啟動，但表面是一層全黑蓋著保護） */}
-          {phase === 'MAGICIAN' && (
-            <div className="absolute inset-0 z-40 bg-slate-950 flex items-center justify-center select-none pointer-events-none">
-              <div className="absolute top-16 text-white/10 tracking-[0.4em] text-xs font-mono">STANDBY MODE</div>
-              {/* 秘密畫線反饋小方塊 */}
-              <div style={{ 
-                     transform: `rotate(${rotationAngle}deg)`, 
-                     transition: 'all 600ms cubic-bezier(0.4, 0, 0.2, 1)'
-                   }}>
-                <div className="border border-white/5 w-[80px] h-[80px] rounded border-dashed"></div>
-              </div>
-            </div>
-          )}
-
-          {/* 3. 觀眾操作 UI 提示層 */}
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center pointer-events-none select-none">
-            {phase === 'WAIT_TARGET' && (
-              <div className="text-emerald-400 border border-emerald-500/20 bg-black/80 px-8 py-4 rounded-full animate-pulse tracking-widest text-xs font-bold backdrop-blur-md">
-                請將鏡頭對準牌背 (點擊螢幕開始感應)
-              </div>
-            )}
-          </div>
-
-          {/* 4. HTML 層級全螢幕放大圖片（脫離 AR 追蹤後的穩定渲染區） */}
-          {(phase === 'REVEAL_FULL' || phase === 'VANISH') && finalCard && (
-            <div className="absolute inset-0 z-40 pointer-events-none">
-              <img 
-                src={finalCard.imageUrl} 
-                className={`absolute top-1/2 left-1/2 w-[90vw] max-w-[380px] aspect-[63/88] object-contain shadow-2xl rounded-xl
-                  ${phase === 'REVEAL_FULL' ? 'card-fullscreen-active' : 'card-vanish-active'}
-                `}
-              />
-            </div>
-          )}
-
-          {/* 5. MindAR 核心場景控制 */}
-          {phase !== 'START' && (
-            <a-scene 
-              mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiScanning: no; uiError: no;" 
-              color-space="sRGB" 
-              renderer="colorManagement: true, physicallyCorrectLights" 
-              vr-mode-ui="enabled: false" 
-              device-orientation-permission-ui="enabled: false"
-              loading-screen="enabled: false"
-            >
-              <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-              <a-entity mindar-image-target="targetIndex: 0">
-                <a-image 
-                  src={finalCard?.imageUrl || ''} 
-                  position="0 0 0" 
-                  height="1.4" 
-                  width="1"
-                  // 只有在 AR 顯影階段才顯示，飛到螢幕前方(REVEAL_FULL)時隱藏 AR 中的元件防止疊影
-                  opacity={phase === 'REVEAL_AR' ? '1' : '0'}
-                  animation__reveal="property: opacity; from: 0; to: 1; dur: 3000; easing: easeOutQuad; startEvents: mindar-image-clickable;"
-                ></a-image>
-              </a-entity>
-            </a-scene>
-          )}
-
-        </div>
-      );
+      function triggerStart() {
+        qrOverlay.style.display = 'none';
+        crosshairContainer.style.display = 'block'; 
+        db.set({ status: "ready" }); 
+        if(navigator.vibrate) navigator.vibrate(60); 
+      }
+      qrOverlay.addEventListener('click', triggerStart);
+    } else {
+      crosshairContainer.style.display = 'block';
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<MagicCardApp />);
+    db.on('value', (snapshot) => {
+      magicData = snapshot.val();
+      applyPhysicalCoordinates(); // 收到雲端資料時，直接套用絕對物理座標
+      updateUIState(); 
+    });
+
+    targetAnchor.addEventListener("targetFound", event => {
+      isTargetTracked = true;
+      applyPhysicalCoordinates();
+      updateUIState();
+    });
+    
+    targetAnchor.addEventListener("targetLost", event => {
+      isTargetTracked = false;
+      updateUIState(); 
+      cancelScan();
+      if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
+      targetMarker.setAttribute('visible', 'false');
+    });
+
+    function updateUIState() {
+      if (!isTargetTracked) {
+        statusText.innerText = "Searching....";
+        statusText.style.color = "#34d399";
+        scanBtn.style.display = 'none';
+        return;
+      }
+
+      if (isRadarActive) {
+        statusText.innerText = "Press SCAN to find your card"; 
+        statusText.style.color = "#34d399";
+        targetMarker.setAttribute('visible', 'true');
+        if (!blinkInterval) startRadarBlinkingEffect();
+        return;
+      }
+
+      if (statusText.innerText !== "Signal weak, please SCAN again...") {
+        statusText.innerText = "Press SCAN to find your card";
+        statusText.style.color = "#34d399";
+      }
+      scanBtn.style.display = 'flex'; 
+    }
+
+    // 🚀 核心修正：直接將雲端「粘在桌面上的實體座標」設定給圖釘。
+    // 因為 targetMarker 本身就是 targetAnchor (鬼牌) 的子元素，
+    // 所以設定它的 position 就能自動完美對應鬼牌的上下左右，無視任何相機角度！
+    function applyPhysicalCoordinates() {
+      if (!magicData || magicData.status !== "locked") return;
+      
+      // 原封不動套用相對於鬼牌中心的實體公尺距離
+      targetMarker.setAttribute('position', `${magicData.physX} ${magicData.physY} 0`);
+    }
+
+    // --- 4. 🤫 魔術師：精確鎖定「相對於鬼牌桌面宇宙」的實體座標 ---
+    magicianZone.addEventListener('click', (e) => {
+      if (!isTargetTracked) return;
+
+      const THREE = AFRAME.THREE;
+      const raycaster = new THREE.Raycaster();
+      // 從魔術師的螢幕正中央 (0,0) 發射 3D 物理射線
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
+      
+      const hitMesh = hitPlane.getObject3D('mesh');
+      const intersects = raycaster.intersectObject(hitMesh, true);
+      
+      if (intersects.length > 0) {
+        const point = intersects[0].point;
+        // 關鍵：將「世界座標」轉換為「相對於鬼牌實體的局部物理座標」
+        const localPos = targetAnchor.object3D.worldToLocal(point.clone());
+        
+        // 🔒 傳送純粹的、粘在桌面上的物理相對距離 (單位：公尺)
+        db.set({ 
+          status: "locked", 
+          physX: localPos.x, 
+          physY: localPos.y
+        });
+        
+        if (navigator.vibrate) navigator.vibrate(60); 
+      }
+    });
+
+    // --- 5. 長按 SCAN 蓄力邏輯 ---
+    function startScan(e) {
+      if (e.cancelable) e.preventDefault();
+      if (!isTargetTracked) return;
+
+      radarContainer.style.display = 'block';
+      radarSweep.style.opacity = '1';
+      statusText.innerText = "Analyzing space dimension...";
+      statusText.style.color = "#facc15";
+
+      scanTimer = setTimeout(() => {
+        executeScanSuccess();
+      }, 2000); 
+    }
+
+    function cancelScan() {
+      if (scanTimer && !isRadarActive) {
+        clearTimeout(scanTimer);
+        scanTimer = null;
+        radarSweep.style.opacity = '0';
+        radarContainer.style.display = 'none';
+        if (isTargetTracked) {
+          statusText.innerText = "Press SCAN to find your card";
+          statusText.style.color = "#34d399";
+        }
+      }
+    }
+
+    function executeScanSuccess() {
+      scanTimer = null;
+
+      if (magicData && magicData.status === "locked") {
+        isRadarActive = true; 
+        scanBtn.style.display = 'none'; 
+
+        applyPhysicalCoordinates(); // 確保圖釘死死咬住物理座標
+        targetMarker.setAttribute('visible', 'true');
+        
+        startRadarBlinkingEffect();
+        if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
+      } else {
+        radarSweep.style.opacity = '0';
+        radarContainer.style.display = 'none';
+        statusText.innerText = "Signal weak, please SCAN again...";
+        statusText.style.color = "#ef4444"; 
+      }
+    }
+
+    function startRadarBlinkingEffect() {
+      if (blinkInterval) clearInterval(blinkInterval);
+      
+      blinkInterval = setInterval(() => {
+        if (!isTargetTracked) return;
+        
+        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 0);
+        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 120);
+        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 240);
+        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 360);
+      }, 1500);
+    }
+
+    scanBtn.addEventListener('touchstart', startScan, { passive: false });
+    scanBtn.addEventListener('touchend', cancelScan);
+    scanBtn.addEventListener('touchcancel', cancelScan);
+    scanBtn.addEventListener('mousedown', startScan);
+    scanBtn.addEventListener('mouseup', cancelScan);
+    scanBtn.addEventListener('mouseleave', cancelScan);
   </script>
 </body>
 </html>
