@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.6 (10秒斷線免疫版)</title>
+  <title>AR 空間雙機連線羅盤 V37.7 (空間感測接管鎖定版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -13,21 +13,16 @@
   <style>
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
-    
-    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; transition: color 0.3s; }
-    
+    #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; }
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
-    .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); transform: translateX(-0.5px); }
-    .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); transform: translateY(-0.5px); }
-
+    .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); }
+    .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); }
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
-    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
-    
-    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; letter-spacing: 1px; z-index: 10006; }
-
+    #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; animation: spin 1.5s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); z-index: 10006; }
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
-
-    #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; font-family: sans-serif; pointer-events: auto; padding-top: 60px; box-sizing: border-box; }
+    #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; }
     #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
   </style>
 </head>
@@ -40,27 +35,25 @@
 
   <div id="ui-layer">
     <div id="status-text">Searching....</div>
-    
     <div id="crosshair-container">
       <div class="crosshair-line-v"></div>
       <div class="crosshair-line-h"></div>
     </div>
-
     <div id="radar-container"><div id="radar-sweep"></div></div>
     <div id="circle-btn">SCAN</div>
     <div id="magician-zone"></div>
   </div>
 
   <a-scene mindar-image="imageTargetSrc: targets.mind; filterMinCF: 0.1; filterBeta: 10" color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-camera position="0 0 0" look-controls="enabled: true; touchEnabled: false"></a-camera>
     
     <a-entity mindar-image-target="targetIndex: 0" id="target-anchor">
       <a-plane id="hit-plane" position="0 0 0" scale="15 15 1" material="transparent: true; opacity: 0;"></a-plane>
-      
-      <a-entity id="target-marker" visible="false">
-        <a-sphere position="0 0 1.0" radius="0.08" material="color: #00ff00;"></a-sphere>
-        <a-cylinder position="0 0 0.5" radius="0.016" height="1.0" rotation="90 0 0" material="color: #00ff00; opacity: 0.7; transparent: true"></a-cylinder>
-      </a-entity>
+    </a-entity>
+
+    <a-entity id="global-world-marker" visible="false">
+      <a-sphere position="0 0 1.0" radius="0.08" material="color: #00ff00;"></a-sphere>
+      <a-cylinder position="0 0 0.5" radius="0.016" height="1.0" rotation="90 0 0" material="color: #00ff00; opacity: 0.7; transparent: true"></a-cylinder>
     </a-entity>
   </a-scene>
 
@@ -81,16 +74,16 @@
     const qrOverlay = document.getElementById('qr-overlay');
     
     const targetAnchor = document.getElementById('target-anchor');
-    const targetMarker = document.getElementById('target-marker');
+    const globalWorldMarker = document.getElementById('global-world-marker');
     const hitPlane = document.getElementById('hit-plane');
     const sceneEl = document.querySelector('a-scene');
     
     let isTargetTracked = false;
+    let hasLoggedStaticPosition = false; // 🚀 是否已經成功捕獲並鎖定靜態座標
     let magicData = null; 
     let scanTimer = null; 
     let isRadarActive = false; 
     let blinkInterval = null;  
-    let lostTimeout = null; // 🚀 記憶維持定時器
 
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
@@ -110,62 +103,71 @@
 
     db.on('value', (snapshot) => {
       magicData = snapshot.val();
-      applyPhysicalCoordinates(); 
+      lockAndFreezeCoordinates(); // 收到雲端資料時，嘗試將其轉換為世界靜態座標
       updateUIState(); 
     });
 
-    // 🚀 核心優化：Found 時清除斷線倒數
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
-      if (lostTimeout) { clearTimeout(lostTimeout); lostTimeout = null; } 
-      applyPhysicalCoordinates();
+      lockAndFreezeCoordinates(); // 只要一抓到鬼牌，秒鎖定！
       updateUIState();
     });
     
-    // 🚀 核心優化：Lost 時虛擬留存 10 秒，絕對不穿幫
     targetAnchor.addEventListener("targetLost", event => {
-      if (isRadarActive) {
-        // 如果圖釘已經引爆，即使斷線，也啟動 10 秒影子留存機制
-        lostTimeout = setTimeout(() => {
-          isTargetTracked = false;
-          updateUIState();
-          targetMarker.setAttribute('visible', 'false');
-        }, 10000); // 給予魔術師高達 10 秒的黃金容錯時間！
-      } else {
-        isTargetTracked = false;
-        updateUIState(); 
+      isTargetTracked = false;
+      // 🚀 核心秘密：這裡不再關閉圖釘，不再變回 Searching！
+      // 因為圖釘已經移交給「裝置空間」，就算鬼牌不見了，圖釘依然會焊在桌面上！
+      if (!hasLoggedStaticPosition) {
         cancelScan();
-        targetMarker.setAttribute('visible', 'false');
       }
+      updateUIState(); 
     });
 
     function updateUIState() {
-      // 只有在真正超時、且未追蹤時才顯示 Searching
-      if (!isTargetTracked && !lostTimeout) {
+      // 如果已經成功捕獲過一次靜態座標，畫面永遠顯示為正常運作狀態，徹底免去科技焦慮
+      if (hasLoggedStaticPosition) {
+        if (isRadarActive) {
+          statusText.innerText = "System Synced. Target Found.";
+          statusText.style.color = "#34d399";
+          globalWorldMarker.setAttribute('visible', 'true');
+          if (!blinkInterval) startRadarBlinkingEffect();
+        } else {
+          statusText.innerText = "Press SCAN to find your card";
+          statusText.style.color = "#34d399";
+          scanBtn.style.display = 'flex';
+        }
+        return;
+      }
+
+      if (!isTargetTracked) {
         statusText.innerText = "Searching....";
         statusText.style.color = "#34d399";
         scanBtn.style.display = 'none';
         return;
       }
 
-      if (isRadarActive) {
-        statusText.innerText = "Press SCAN to find your card"; 
-        statusText.style.color = "#34d399";
-        targetMarker.setAttribute('visible', 'true');
-        if (!blinkInterval) startRadarBlinkingEffect();
-        return;
-      }
-
-      if (statusText.innerText !== "Signal weak, please SCAN again...") {
-        statusText.innerText = "Press SCAN to find your card";
-        statusText.style.color = "#34d399";
-      }
+      statusText.innerText = "Press SCAN to find your card";
       scanBtn.style.display = 'flex'; 
     }
 
-    function applyPhysicalCoordinates() {
-      if (!magicData || magicData.status !== "locked") return;
-      targetMarker.setAttribute('position', `${magicData.physX} ${magicData.physY} 0`);
+    // 🚀 終極核心：將「鬼牌相對座標」一次性轉換並鎖定為「宇宙絕對世界座標」
+    function lockAndFreezeCoordinates() {
+      if (!isTargetTracked || !magicData || magicData.status !== "locked" || hasLoggedStaticPosition) return;
+
+      const THREE = AFRAME.THREE;
+      
+      // 1. 創立一個虛擬點，套用雲端傳來的、粘在鬼牌上的相對物理座標
+      const localPos = new THREE.Vector3(magicData.physX, magicData.physY, 0);
+      
+      // 2. 利用當前的矩陣，將這個點轉換為「此時房間宇宙的絕對 3D 世界座標」
+      const worldPos = new THREE.Vector3();
+      targetAnchor.object3D.localToWorld(localPos.clone(), worldPos);
+
+      // 3. 原封不動把這個座標交給脫離了 MindAR 限制的世界圖釘
+      globalWorldMarker.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
+      
+      // 4. 🔒 狀態解耦旗標立起：之後這台手機再也不去重新計算、不理會鬼牌，永遠用這個座標！
+      hasLoggedStaticPosition = true; 
     }
 
     magicianZone.addEventListener('click', (e) => {
@@ -188,7 +190,8 @@
 
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
-      if (!isTargetTracked && !lostTimeout) return;
+      // 只要捕捉過一次，就算現在照不到鬼牌，也允許長按 SCAN！
+      if (!isTargetTracked && !hasLoggedStaticPosition) return;
 
       radarContainer.style.display = 'block';
       radarSweep.style.opacity = '1';
@@ -204,10 +207,8 @@
         scanTimer = null;
         radarSweep.style.opacity = '0';
         radarContainer.style.display = 'none';
-        if (isTargetTracked || lostTimeout) {
-          statusText.innerText = "Press SCAN to find your card";
-          statusText.style.color = "#34d399";
-        }
+        statusText.innerText = "Press SCAN to find your card";
+        statusText.style.color = "#34d399";
       }
     }
 
@@ -216,25 +217,19 @@
       if (magicData && magicData.status === "locked") {
         isRadarActive = true; 
         scanBtn.style.display = 'none'; 
-        applyPhysicalCoordinates(); 
-        targetMarker.setAttribute('visible', 'true');
+        globalWorldMarker.setAttribute('visible', 'true');
         startRadarBlinkingEffect();
         if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
-      } else {
-        radarSweep.style.opacity = '0';
-        radarContainer.style.display = 'none';
-        statusText.innerText = "Signal weak, please SCAN again...";
-        statusText.style.color = "#ef4444"; 
       }
     }
 
     function startRadarBlinkingEffect() {
       if (blinkInterval) clearInterval(blinkInterval);
       blinkInterval = setInterval(() => {
-        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 0);
-        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 120);
-        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 240);
-        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 360);
+        setTimeout(() => globalWorldMarker.setAttribute('visible', 'false'), 0);
+        setTimeout(() => globalWorldMarker.setAttribute('visible', 'true'), 120);
+        setTimeout(() => globalWorldMarker.setAttribute('visible', 'false'), 240);
+        setTimeout(() => globalWorldMarker.setAttribute('visible', 'true'), 360);
       }, 1500);
     }
 
