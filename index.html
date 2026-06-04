@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.20 (純淨魔術版)</title>
+  <title>AR 空間雙機連線羅盤 V37.21 (蓄力視覺回饋版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,7 +14,7 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 🧙‍♂️ 魔術師專屬：右上角圓形懸浮 QR 喚醒鈕 */
+    /* 魔術師專屬：右上角圓形懸浮 QR 喚醒鈕 */
     #qr-toggle-btn { position: absolute; top: 20px; right: 20px; width: 50px; height: 50px; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); border-radius: 50%; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; cursor: pointer; pointer-events: auto; z-index: 10006; display: none; line-height: 48px; padding: 0; box-sizing: border-box; }
 
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: block; }
@@ -25,8 +25,15 @@
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     
-    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; letter-spacing: 1px; z-index: 10006; }
+    /* 🟢 核心修改：將 SCAN 按鈕改為可容納水位動畫的容器 */
+    #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; display: none; justify-content: center; align-items: center; cursor: pointer; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); transition: transform 0.1s; overflow: hidden; /* 確保水位不會超出圓形邊界 */ z-index: 10006; }
     #circle-btn:active { transform: translate(-50%, -50%) scale(0.9); }
+    
+    /* 蓄力水位填充層 */
+    .btn-fill { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: rgba(52, 211, 153, 0.6); z-index: 0; }
+    
+    /* SCAN 文字層 (需浮在水位之上) */
+    .btn-text { position: relative; color: #34d399; font-weight: bold; font-size: 14px; letter-spacing: 1px; z-index: 1; }
 
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
 
@@ -58,7 +65,11 @@
     </div>
 
     <div id="radar-container"><div id="radar-sweep"></div></div>
-    <div id="circle-btn">SCAN</div>
+    
+    <div id="circle-btn">
+      <div class="btn-fill" id="btn-fill"></div>
+      <span class="btn-text">SCAN</span>
+    </div>
     
     <div id="magician-zone"></div>
   </div>
@@ -84,10 +95,10 @@
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
     
-    const crosshairContainer = document.getElementById('crosshair-container'); 
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
     const scanBtn = document.getElementById('circle-btn');
+    const btnFill = document.getElementById('btn-fill'); // 🟢 獲取水位動畫元素
     const magicianZone = document.getElementById('magician-zone');
     const qrOverlay = document.getElementById('qr-overlay');
     const qrToggleBtn = document.getElementById('qr-toggle-btn');
@@ -115,10 +126,7 @@
       document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
       qrOverlay.style.display = 'flex'; 
 
-      qrOverlay.addEventListener('click', () => {
-        qrOverlay.style.display = 'none';
-      });
-      
+      qrOverlay.addEventListener('click', () => { qrOverlay.style.display = 'none'; });
       qrToggleBtn.addEventListener('click', () => {
         qrOverlay.style.display = qrOverlay.style.display === 'flex' ? 'none' : 'flex';
       });
@@ -142,14 +150,14 @@
     
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      cancelScan();
+      cancelScan(); // 若追蹤丟失，自動中斷蓄力
       if (isAnimatingRadar) stopRadarAnimation();
       updateUIState(); 
       if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
       targetMarker.setAttribute('visible', 'false');
     });
 
-    // 核心 UI 控制：移除了所有文字更新邏輯，只單純控制 SCAN 按鈕與圓點顯示
+    // 核心 UI 控制
     function updateUIState() {
       if (isAnimatingRadar) return;
 
@@ -161,7 +169,7 @@
       if (isRadarActive) {
         scanBtn.style.display = 'none';
         targetMarker.setAttribute('visible', 'true');
-        if (!blinkInterval) startDotBlinkingEffect(); // 啟動圓點規律閃爍
+        if (!blinkInterval) startDotBlinkingEffect();
         return;
       }
 
@@ -179,7 +187,6 @@
       }
     }
 
-    // 套用相對座標
     function applyPhysicalCoordinates() {
       if (!magicData || magicData.status !== "locked") return;
       targetMarker.setAttribute('position', `${magicData.physX} ${magicData.physY} 0`);
@@ -188,7 +195,6 @@
     // 魔術師秘密定錨
     magicianZone.addEventListener('click', (e) => {
       if (!isTargetTracked) return;
-
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
@@ -199,33 +205,38 @@
       if (intersects.length > 0) {
         const point = intersects[0].point;
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        
-        db.set({ 
-          status: "locked", 
-          physX: localPos.x, 
-          physY: localPos.y
-        });
+        db.set({ status: "locked", physX: localPos.x, physY: localPos.y });
         if (navigator.vibrate) navigator.vibrate(60); 
       }
     });
 
-    // 按下 SCAN 2 秒蓄力
+    // 🟢 核心修改：按下 SCAN，啟動線性填滿動畫
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
       if (!isTargetTracked || isRadarActive || isAnimatingRadar) return;
 
       isHolding = true;
+      
+      // 啟動綠色水位的 CSS 均速增長動畫 (耗時 2 秒)
+      btnFill.style.transition = 'height 2s linear';
+      btnFill.style.height = '100%';
 
       holdTimer = setTimeout(() => {
         startRadarAnimation();
       }, 2000); 
     }
 
+    // 🟢 核心修改：鬆開 SCAN，瞬間排空動畫
     function cancelScan() {
       if (isHolding && !isAnimatingRadar) {
         clearTimeout(holdTimer);
         holdTimer = null;
         isHolding = false;
+        
+        // 瞬間中斷並在 0.3 秒內退回底部
+        btnFill.style.transition = 'height 0.3s ease-out';
+        btnFill.style.height = '0%';
+        
         updateUIState();
       }
     }
@@ -235,6 +246,10 @@
       isHolding = false;
       holdTimer = null;
       isAnimatingRadar = true;
+
+      // 雷達觸發後，重置按鈕水位狀態以備未來使用
+      btnFill.style.transition = 'none';
+      btnFill.style.height = '0%';
 
       scanBtn.style.display = 'none';
       radarContainer.style.display = 'block';
@@ -268,7 +283,6 @@
       }
     }
 
-    // 🟢 核心修改：圓點高頻規律閃爍特效（每 350 毫秒切換一次，極具雷達偵測感）
     function startDotBlinkingEffect() {
       if (blinkInterval) clearInterval(blinkInterval);
       
