@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V38.0 (iOS 終極安全版)</title>
+  <title>AR 空間雙機連線羅盤 V37.7 (空間感測接管鎖定版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -11,48 +11,26 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
   <style>
-    body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
-    
-    /* 狀態列 */
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; }
-    
-    /* 準心 */
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
     .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); }
     .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); }
-
-    /* 雷達動畫 */
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
-    
-    /* SCAN 按鈕 */
     #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); z-index: 10006; }
-    
-    /* 魔術師隱形觸控區 */
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
-
-    /* 🛑 終極防呆防撕裂登入幕 (覆蓋全螢幕) */
-    #portal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 20000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #34d399; pointer-events: auto; text-align: center; padding: 20px; box-sizing: border-box; }
-    #portal-title { font-size: 22px; color: #fff; margin-bottom: 5px; font-weight: bold; letter-spacing: 2px; }
-    #portal-subtitle { font-size: 13px; color: #6ee7b7; margin-bottom: 35px; opacity: 0.8; }
-    #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; margin-bottom: 25px; display: none; }
-    
-    /* 核心啟動按鈕：未載入前是灰色的、禁止點擊 */
-    #start-magic-btn { width: 80%; max-width: 280px; padding: 16px; border-radius: 12px; background: #222; border: 2px solid #444; color: #666; font-size: 16px; font-weight: bold; cursor: not-allowed; transition: all 0.3s ease; box-shadow: 0 0 0px rgba(0,0,0,0); }
-    #start-magic-btn.ready { background: rgba(2, 44, 34, 0.95); border: 2px solid #34d399; color: #34d399; cursor: pointer; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); }
+    #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; }
+    #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
   </style>
 </head>
 <body>
 
-  <div id="portal-overlay">
-    <div id="portal-title">🔮 魔術空間傳輸節點</div>
-    <div id="portal-subtitle">正在下載量子空間地圖與初始化內核...</div>
-    
+  <div id="qr-overlay">
+    <h2>🧙‍♂️ 魔術師演出主控台</h2>
     <img id="qr-image" src="" alt="Audience QR Code">
-    
-    <button id="start-magic-btn" disabled>請稍候，內核加載中...</button>
   </div>
 
   <div id="ui-layer">
@@ -80,33 +58,20 @@
   </a-scene>
 
   <script>
-    // 🚨 1. 手機網頁黑盒子：運行時有任何出錯，直接彈窗報警，不允許默默卡死
-    window.onerror = function(message, source, lineno, colno, error) {
-      alert(`🚨 偵測到程式崩潰！\n錯誤訊息: ${message}\n行號: ${lineno}\n來源: ${source}`);
-      return false;
-    };
-
-    // Firebase 初始化
     const firebaseConfig = { databaseURL: "https://magic-ar-radar-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database().ref("magic_space_node");
     
-    // 角色權限偵測
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
     
-    // UI 元素獲取
     const statusText = document.getElementById('status-text');
     const crosshairContainer = document.getElementById('crosshair-container'); 
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
     const scanBtn = document.getElementById('circle-btn');
     const magicianZone = document.getElementById('magician-zone');
-    
-    const portalOverlay = document.getElementById('portal-overlay');
-    const portalSubtitle = document.getElementById('portal-subtitle');
-    const startMagicBtn = document.getElementById('start-magic-btn');
-    const qrImage = document.getElementById('qr-image');
+    const qrOverlay = document.getElementById('qr-overlay');
     
     const targetAnchor = document.getElementById('target-anchor');
     const globalWorldMarker = document.getElementById('global-world-marker');
@@ -114,91 +79,52 @@
     const sceneEl = document.querySelector('a-scene');
     
     let isTargetTracked = false;
-    let hasLoggedStaticPosition = false; // 是否已成功捕獲並凍結靜態座標
+    let hasLoggedStaticPosition = false; // 🚀 是否已經成功捕獲並鎖定靜態座標
     let magicData = null; 
     let scanTimer = null; 
     let isRadarActive = false; 
     let blinkInterval = null;  
 
-    // 🎭 權限分流視覺設定
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
-      portalSubtitle.innerText = "請讓觀眾手機掃描下方條碼，完成後點擊按鈕開始";
       const audienceUrl = window.location.origin + window.location.pathname;
-      qrImage.src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
-      qrImage.style.display = 'block';
+      document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
+      qrOverlay.style.display = 'flex';
+      crosshairContainer.style.display = 'none';
+
+      qrOverlay.addEventListener('click', () => {
+        qrOverlay.style.display = 'none';
+        crosshairContainer.style.display = 'block'; 
+        db.set({ status: "ready" }); 
+      });
     } else {
-      portalSubtitle.innerText = "請等待魔術師指示，當按鈕點亮時即可啟動連線";
+      crosshairContainer.style.display = 'block';
     }
 
-    // 🔄 監聽 A-Frame 場景加載完成事件（核心安全防鎖）
-    sceneEl.addEventListener("loaded", () => {
-      console.log("A-Frame 內核加載完畢");
-      // 點亮按鈕，允許使用者點擊
-      startMagicBtn.removeAttribute('disabled');
-      startMagicBtn.classList.add('ready');
-      startMagicBtn.innerText = myRole === 'magician' ? "正式開啟演出主控" : "啟動魔法連線";
-    });
-
-    // 監聽 MindAR 初始化錯誤事件
-    sceneEl.addEventListener("arError", (event) => {
-      alert("🚨 AR 引擎啟動失敗！原因可能是：\n1. 找不到 targets.mind 檔案\n2. 拒絕了相機使用權限\n3. 瀏覽器不支援 WebRTC");
-    });
-
-    // 🚀 核心點擊：處理 iOS 陀螺儀權限與解鎖畫面
-    startMagicBtn.addEventListener('click', async () => {
-      if (!startMagicBtn.classList.contains('ready')) return;
-
-      // 請求 iOS 陀螺儀特許權限
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        try {
-          const permissionState = await DeviceOrientationEvent.requestPermission();
-          if (permissionState !== 'granted') {
-            alert("⚠️ 您拒絕了陀螺儀權限，空間鎖定功能將無法完美運作！");
-          }
-        } catch (error) {
-          alert("🚨 陀螺儀權限請求發生錯誤: " + error);
-        }
-      }
-
-      // 關閉遮罩層，顯示 AR 畫面
-      portalOverlay.style.display = 'none';
-      if (myRole === 'magician') {
-        crosshairContainer.style.display = 'none'; // 魔術師不顯示準心
-        db.set({ status: "ready" }); 
-      } else {
-        crosshairContainer.style.display = 'block';
-      }
-      if (navigator.vibrate) navigator.vibrate(60);
-    });
-
-    // ☁️ 監聽 Firebase 資料庫廣播
     db.on('value', (snapshot) => {
       magicData = snapshot.val();
-      lockAndFreezeCoordinates(); 
+      lockAndFreezeCoordinates(); // 收到雲端資料時，嘗試將其轉換為世界靜態座標
       updateUIState(); 
     });
 
-    // 🎴 當追蹤到影像（哪怕只有一毫秒）
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
-      lockAndFreezeCoordinates(); // 瞬間抓取並鎖死
+      lockAndFreezeCoordinates(); // 只要一抓到鬼牌，秒鎖定！
       updateUIState();
     });
     
-    // 🎴 當影像遺失（例如距離太近、爆框、卡住）
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      // 💡 核心改動：如果已經成功鎖定過一次座標，就算 Lost 也不理它，維持圖釘顯示！
+      // 🚀 核心秘密：這裡不再關閉圖釘，不再變回 Searching！
+      // 因為圖釘已經移交給「裝置空間」，就算鬼牌不見了，圖釘依然會焊在桌面上！
       if (!hasLoggedStaticPosition) {
         cancelScan();
       }
       updateUIState(); 
     });
 
-    // 更新使用者界面狀態
     function updateUIState() {
-      // 只要捕捉過一次靜態座標，畫面永遠維持正常，徹底免去斷線焦慮
+      // 如果已經成功捕獲過一次靜態座標，畫面永遠顯示為正常運作狀態，徹底免去科技焦慮
       if (hasLoggedStaticPosition) {
         if (isRadarActive) {
           statusText.innerText = "System Synced. Target Found.";
@@ -224,35 +150,31 @@
       scanBtn.style.display = 'flex'; 
     }
 
-    // 🔒 空間變換精準凍結（關鍵演算法）
+    // 🚀 終極核心：將「鬼牌相對座標」一次性轉換並鎖定為「宇宙絕對世界座標」
     function lockAndFreezeCoordinates() {
-      // 必須具備追蹤、雲端有資料、且「尚未被鎖定」時才執行一次性凍結
       if (!isTargetTracked || !magicData || magicData.status !== "locked" || hasLoggedStaticPosition) return;
 
       const THREE = AFRAME.THREE;
       
-      // 1. 建立一個虛擬 3D 向量，套用雲端傳來的、粘在牌面宇宙上的相對物理距離
+      // 1. 創立一個虛擬點，套用雲端傳來的、粘在鬼牌上的相對物理座標
       const localPos = new THREE.Vector3(magicData.physX, magicData.physY, 0);
       
-      // 2. 利用目前畫面計算出的實時矩陣，將該點直接變換為「此時房間宇宙的絕對 3D 世界座標」
+      // 2. 利用當前的矩陣，將這個點轉換為「此時房間宇宙的絕對 3D 世界座標」
       const worldPos = new THREE.Vector3();
       targetAnchor.object3D.localToWorld(localPos.clone(), worldPos);
 
-      // 3. 原封不動把這個固定好的 3D 座標交給脫離了 MindAR 限制的世界圖釘
+      // 3. 原封不動把這個座標交給脫離了 MindAR 限制的世界圖釘
       globalWorldMarker.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
       
-      // 4. 立起解耦旗標：之後這台手機再也不去計算、不理會影像追蹤，永遠用這個世界座標！
+      // 4. 🔒 狀態解耦旗標立起：之後這台手機再也不去重新計算、不理會鬼牌，永遠用這個座標！
       hasLoggedStaticPosition = true; 
-      console.log("物理空間座標已成功解耦並鎖死：", worldPos);
     }
 
-    // 🤫 魔術師端點擊鎖定物理位置
     magicianZone.addEventListener('click', (e) => {
       if (!isTargetTracked) return;
 
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
-      // 從魔術師螢幕中心發射 3D 物理設線
       raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
       
       const hitMesh = hitPlane.getObject3D('mesh');
@@ -260,18 +182,15 @@
       
       if (intersects.length > 0) {
         const point = intersects[0].point;
-        // 將世界交點轉換為相對於魔術師桌上撲克牌的相對座標
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        
-        // 寫入雲端
         db.set({ status: "locked", physX: localPos.x, physY: localPos.y });
         if (navigator.vibrate) navigator.vibrate(60); 
       }
     });
 
-    // 觀眾長按 SCAN 蓄力邏輯
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
+      // 只要捕捉過一次，就算現在照不到鬼牌，也允許長按 SCAN！
       if (!isTargetTracked && !hasLoggedStaticPosition) return;
 
       radarContainer.style.display = 'block';
@@ -314,7 +233,6 @@
       }, 1500);
     }
 
-    // 綁定長按與滑鼠事件
     scanBtn.addEventListener('touchstart', startScan, { passive: false });
     scanBtn.addEventListener('touchend', cancelScan);
     scanBtn.addEventListener('touchcancel', cancelScan);
