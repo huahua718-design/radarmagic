@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.8 (魔術師主控優化版)</title>
+  <title>AR 空間雙機連線羅盤 V37.7 (空間感測接管鎖定版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -13,25 +13,15 @@
   <style>
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
-    
-    /* 頂部狀態列 */
     #status-text { position: absolute; top: 40px; width: 90%; left: 5%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; }
-    
-    /* 中央準心 */
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: none; }
     .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); }
     .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); }
-    
-    /* 雷達與 SCAN 按鈕 */
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; animation: spin 1.5s linear infinite; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     #circle-btn { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 95px; height: 95px; border-radius: 50%; background: rgba(2, 44, 34, 0.9); border: 2px solid #34d399; color: #34d399; font-weight: bold; font-size: 14px; display: none; justify-content: center; align-items: center; pointer-events: auto; box-shadow: 0 0 20px rgba(52, 211, 153, 0.4); z-index: 10006; }
-    
-    /* 🤫 魔術師專用隱形無痕觸控區 */
-    #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: rgba(255,0,0,0.0); z-index: 9999; display: none; }
-    
-    /* 魔術師 QR Code 頁面 */
+    #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
     #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0a0a0a; z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; }
     #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
   </style>
@@ -89,13 +79,12 @@
     const sceneEl = document.querySelector('a-scene');
     
     let isTargetTracked = false;
-    let hasLoggedStaticPosition = false; 
+    let hasLoggedStaticPosition = false; // 🚀 是否已經成功捕獲並鎖定靜態座標
     let magicData = null; 
     let scanTimer = null; 
     let isRadarActive = false; 
     let blinkInterval = null;  
 
-    // --- 1. 魔術師開局權限分流 ---
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
       const audienceUrl = window.location.origin + window.location.pathname;
@@ -107,58 +96,35 @@
         qrOverlay.style.display = 'none';
         crosshairContainer.style.display = 'block'; 
         db.set({ status: "ready" }); 
-        updateUIState();
       });
     } else {
       crosshairContainer.style.display = 'block';
     }
 
-    // --- 2. 監聽雲端資料 ---
     db.on('value', (snapshot) => {
       magicData = snapshot.val();
-      lockAndFreezeCoordinates(); 
+      lockAndFreezeCoordinates(); // 收到雲端資料時，嘗試將其轉換為世界靜態座標
       updateUIState(); 
     });
 
-    // --- 3. AR 追蹤狀態控制中心 ---
     targetAnchor.addEventListener("targetFound", event => {
       isTargetTracked = true;
-      lockAndFreezeCoordinates();
+      lockAndFreezeCoordinates(); // 只要一抓到鬼牌，秒鎖定！
       updateUIState();
     });
     
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
-      if (myRole === 'magician') {
-        globalWorldMarker.setAttribute('visible', 'false'); // 魔術師如果斷線，暫時隱藏標記，提示其重新對準
-      } else {
-        if (!hasLoggedStaticPosition) cancelScan();
+      // 🚀 核心秘密：這裡不再關閉圖釘，不再變回 Searching！
+      // 因為圖釘已經移交給「裝置空間」，就算鬼牌不見了，圖釘依然會焊在桌面上！
+      if (!hasLoggedStaticPosition) {
+        cancelScan();
       }
       updateUIState(); 
     });
 
-    // --- 4. 📊 雙端獨立 UI 狀態管理中心 ---
     function updateUIState() {
-      // 🧙‍♂️ 魔術師端 UI 邏輯
-      if (myRole === 'magician') {
-        if (qrOverlay.style.display === 'flex') return;
-        
-        if (!isTargetTracked) {
-          statusText.innerText = "⚠️ 未偵測到撲克牌！請靠近牌組 (20-30cm)";
-          statusText.style.color = "#ef4444";
-        } else {
-          if (magicData && magicData.status === "locked") {
-            statusText.innerText = "🎯 目標已鎖定！(可點擊右下角重新變更)";
-            statusText.style.color = "#facc15";
-          } else {
-            statusText.innerText = "🟢 已偵測到牌組！用中央準心瞄準，點擊右下角鎖定";
-            statusText.style.color = "#34d399";
-          }
-        }
-        return;
-      }
-
-      // 📱 觀眾端 UI 邏輯
+      // 如果已經成功捕獲過一次靜態座標，畫面永遠顯示為正常運作狀態，徹底免去科技焦慮
       if (hasLoggedStaticPosition) {
         if (isRadarActive) {
           statusText.innerText = "System Synced. Target Found.";
@@ -184,44 +150,31 @@
       scanBtn.style.display = 'flex'; 
     }
 
-    // --- 5. 🚀 空間幾何解析與定錨 (解耦防飄移) ---
+    // 🚀 終極核心：將「鬼牌相對座標」一次性轉換並鎖定為「宇宙絕對世界座標」
     function lockAndFreezeCoordinates() {
-      if (!magicData || magicData.status !== "locked") return;
-      
-      // 觀眾端如果已經定錨過，就不再重複計算，防止飄移
-      if (myRole === 'audience' && hasLoggedStaticPosition) return;
-      
-      // 如果觀眾尚未追蹤到目標，暫時無法建立世界座標
-      if (!isTargetTracked && myRole === 'audience') return;
+      if (!isTargetTracked || !magicData || magicData.status !== "locked" || hasLoggedStaticPosition) return;
 
       const THREE = AFRAME.THREE;
-      const localPos = new THREE.Vector3(magicData.physX, magicData.physY, 0);
-      const worldPos = new THREE.Vector3();
       
-      // 將鬼牌局部物理相對座標轉為此時房間的絕對世界座標
+      // 1. 創立一個虛擬點，套用雲端傳來的、粘在鬼牌上的相對物理座標
+      const localPos = new THREE.Vector3(magicData.physX, magicData.physY, 0);
+      
+      // 2. 利用當前的矩陣，將這個點轉換為「此時房間宇宙的絕對 3D 世界座標」
+      const worldPos = new THREE.Vector3();
       targetAnchor.object3D.localToWorld(localPos.clone(), worldPos);
+
+      // 3. 原封不動把這個座標交給脫離了 MindAR 限制的世界圖釘
       globalWorldMarker.setAttribute('position', `${worldPos.x} ${worldPos.y} ${worldPos.z}`);
       
-      if (myRole === 'audience') {
-        hasLoggedStaticPosition = true; 
-      } else {
-        // 魔術師端：隨時保持圖釘可見，作為點擊成功的即時確認回饋
-        globalWorldMarker.setAttribute('visible', 'true');
-      }
+      // 4. 🔒 狀態解耦旗標立起：之後這台手機再也不去重新計算、不理會鬼牌，永遠用這個座標！
+      hasLoggedStaticPosition = true; 
     }
 
-    // --- 6. 🤫 魔術師：精確鎖定並獲得即時回饋 ---
     magicianZone.addEventListener('click', (e) => {
-      if (!isTargetTracked) {
-        if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-        statusText.innerText = "❌ 鎖定失敗：必須先讓撲克牌入鏡！";
-        statusText.style.color = "#ef4444";
-        return;
-      }
+      if (!isTargetTracked) return;
 
       const THREE = AFRAME.THREE;
       const raycaster = new THREE.Raycaster();
-      // 從魔術師螢幕正中央 (0,0) 發射 3D 物理射線
       raycaster.setFromCamera(new THREE.Vector2(0, 0), sceneEl.camera); 
       
       const hitMesh = hitPlane.getObject3D('mesh');
@@ -230,31 +183,14 @@
       if (intersects.length > 0) {
         const point = intersects[0].point;
         const localPos = targetAnchor.object3D.worldToLocal(point.clone());
-        
-        // 🔒 寫入雲端
-        db.set({ 
-          status: "locked", 
-          physX: localPos.x, 
-          physY: localPos.y 
-        });
-        
-        // 🧙‍♂️ 關鍵回饋：讓魔術師端的手機畫面立刻看到圖釘落點
-        globalWorldMarker.setAttribute('position', `${point.x} ${point.y} ${point.z}`);
-        globalWorldMarker.setAttribute('visible', 'true');
-        
-        statusText.innerText = "🎯 成功鎖定物理點！座標已同步雲端";
-        statusText.style.color = "#34d399";
-        
+        db.set({ status: "locked", physX: localPos.x, physY: localPos.y });
         if (navigator.vibrate) navigator.vibrate(60); 
-      } else {
-        statusText.innerText = "❌ 錯誤：中央準心未對準撲克牌平面";
-        statusText.style.color = "#ef4444";
       }
     });
 
-    // --- 7. 觀眾端：長按 SCAN 蓄力邏輯 ---
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
+      // 只要捕捉過一次，就算現在照不到鬼牌，也允許長按 SCAN！
       if (!isTargetTracked && !hasLoggedStaticPosition) return;
 
       radarContainer.style.display = 'block';
