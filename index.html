@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>AR 空間雙機連線羅盤 V37.15 (雷達動畫精準重製版)</title>
+  <title>AR 空間雙機連線羅盤 V37.20 (純淨魔術版)</title>
   
   <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.2/dist/mindar-image-aframe.prod.js"></script>
@@ -14,15 +14,12 @@
     body { margin: 0; overflow: hidden; background-color: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
     #ui-layer { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1000; pointer-events: none; }
     
-    /* 調整狀態列寬度，預留右側空間給魔術師的 QR Code 按鈕 */
-    #status-text { position: absolute; top: 40px; left: 5%; width: 70%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; letter-spacing: 1px; pointer-events: auto; z-index: 10005; transition: color 0.3s; box-sizing: border-box; }
-    
-    /* 🧙‍♂️ 魔術師專屬：QR Code 喚醒按鈕 */
-    #qr-toggle-btn { position: absolute; top: 40px; right: 5%; width: 18%; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); padding: 12px; border-radius: 8px; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; cursor: pointer; pointer-events: auto; z-index: 10006; display: none; box-sizing: border-box; }
+    /* 🧙‍♂️ 魔術師專屬：右上角圓形懸浮 QR 喚醒鈕 */
+    #qr-toggle-btn { position: absolute; top: 20px; right: 20px; width: 50px; height: 50px; text-align: center; color: #34d399; font-size: 15px; background: rgba(0,0,0,0.85); border-radius: 50%; border: 1px solid rgba(52, 211, 153, 0.4); font-weight: bold; cursor: pointer; pointer-events: auto; z-index: 10006; display: none; line-height: 48px; padding: 0; box-sizing: border-box; }
 
     #crosshair-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1001; display: block; }
-    .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.6); transform: translateX(-0.5px); }
-    .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.6); transform: translateY(-0.5px); }
+    .crosshair-line-v { position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: rgba(52, 211, 153, 0.4); transform: translateX(-0.5px); }
+    .crosshair-line-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(52, 211, 153, 0.4); transform: translateY(-0.5px); }
 
     #radar-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 150vmax; height: 150vmax; border-radius: 50%; border: 2px solid rgba(52, 211, 153, 0.08); display: none; }
     #radar-sweep { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; background: conic-gradient(from 0deg, rgba(52, 211, 153, 0) 0%, rgba(52, 211, 153, 0.03) 60%, rgba(52, 211, 153, 0.5) 100%); opacity: 0; transition: opacity 0.3s ease; animation: spin 1.5s linear infinite; }
@@ -33,14 +30,13 @@
 
     #magician-zone { position: absolute; bottom: 0; right: 0; width: 140px; height: 140px; pointer-events: auto; background: transparent; z-index: 9999; display: none; }
 
-    /* 2. 🧙‍♂️ 魔術師專屬：隱藏/顯示 QR Code 浮動面板 */
+    /* 魔術師專屬 QR Code 面板 */
     #qr-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(10, 10, 10, 0.95); z-index: 10000; display: none; flex-direction: column; justify-content: center; align-items: center; color: #34d399; font-family: sans-serif; pointer-events: auto; box-sizing: border-box; }
     #qr-overlay h2 { margin-bottom: 5px; color: #fff; font-size: 20px; }
     #qr-overlay p { margin-bottom: 25px; font-size: 14px; color: #a7f3d0; }
     #qr-image { border: 8px solid #10b981; border-radius: 12px; background: white; padding: 10px; }
     #qr-footer { margin-top: 30px; font-size: 13px; color: #6ee7b7; opacity: 0.8; text-align: center; padding: 0 20px; font-weight: bold; }
 
-    /* 1. 🚷 核心修改：強制移除並抹除 MindAR 內建的找尋時掃描框 */
     .mindar-ui-scanning { display: none !important; }
   </style>
 </head>
@@ -54,8 +50,6 @@
   </div>
 
   <div id="ui-layer">
-    <div id="status-text">Searching....</div>
-    
     <button id="qr-toggle-btn">QR</button>
     
     <div id="crosshair-container">
@@ -76,8 +70,8 @@
       <a-plane id="hit-plane" position="0 0 0" scale="15 15 1" material="transparent: true; opacity: 0;"></a-plane>
       
       <a-entity id="target-marker" visible="false">
-        <a-sphere position="0 0 1.0" radius="0.08" material="color: #00ff00;"></a-sphere>
-        <a-cylinder position="0 0 0.5" radius="0.016" height="1.0" rotation="90 0 0" material="color: #00ff00; opacity: 0.7; transparent: true"></a-cylinder>
+        <a-circle position="0 0 0.02" radius="0.05" material="color: #00ff00; shader: flat; side: double;"></a-circle>
+        <a-ring position="0 0 0.01" radius-inner="0.07" radius-outer="0.09" material="color: #00ff00; shader: flat; opacity: 0.6; side: double;"></a-ring>
       </a-entity>
     </a-entity>
   </a-scene>
@@ -90,7 +84,6 @@
     const urlParams = new URLSearchParams(window.location.search);
     const myRole = urlParams.get('role') || 'audience'; 
     
-    const statusText = document.getElementById('status-text');
     const crosshairContainer = document.getElementById('crosshair-container'); 
     const radarContainer = document.getElementById('radar-container');
     const radarSweep = document.getElementById('radar-sweep');
@@ -106,28 +99,26 @@
     
     let isTargetTracked = false;
     let magicData = null; 
-    let holdTimer = null;       // 按住 SCAN 的 2 秒蓄力計時器
-    let radarAnimationTimer = null; // 雷達動畫運作計時器
-    let isHolding = false;      // 是否正在按住蓄力
-    let isAnimatingRadar = false; // 是否正在跑雷達動畫
-    let isRadarActive = false;   // 雷達是否完成並找到了錨點
+    let holdTimer = null;       
+    let radarAnimationTimer = null; 
+    let isHolding = false;      
+    let isAnimatingRadar = false; 
+    let isRadarActive = false;   
     let blinkInterval = null;  
 
-    // 2. 🧙‍♂️ 核心流程修改：初始化角色權限與 QR Code 機制
+    // 初始化角色權限與 QR Code
     if (myRole === 'magician') {
       magicianZone.style.display = 'block'; 
-      qrToggleBtn.style.display = 'block'; // 只在魔術師端右上角顯示 QR 喚醒鈕
+      qrToggleBtn.style.display = 'block'; 
       
       const audienceUrl = window.location.origin + window.location.pathname;
       document.getElementById('qr-image').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(audienceUrl)}`;
-      qrOverlay.style.display = 'flex'; // 開局魔術師端跳出條碼畫面
+      qrOverlay.style.display = 'flex'; 
 
-      // 點擊任意處隱藏 QR 條碼
       qrOverlay.addEventListener('click', () => {
         qrOverlay.style.display = 'none';
       });
       
-      // 點擊右上角 QR 按鈕可隨時重新呼喚出條碼給新觀眾掃描
       qrToggleBtn.addEventListener('click', () => {
         qrOverlay.style.display = qrOverlay.style.display === 'flex' ? 'none' : 'flex';
       });
@@ -152,64 +143,43 @@
     targetAnchor.addEventListener("targetLost", event => {
       isTargetTracked = false;
       cancelScan();
-      if (isAnimatingRadar) {
-        stopRadarAnimation();
-      }
+      if (isAnimatingRadar) stopRadarAnimation();
       updateUIState(); 
       if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
       targetMarker.setAttribute('visible', 'false');
     });
 
-    // 核心控制：控制 SCAN 按鈕出現時機與狀態
+    // 核心 UI 控制：移除了所有文字更新邏輯，只單純控制 SCAN 按鈕與圓點顯示
     function updateUIState() {
-      // 如果正處於雷達動態掃描中，交給掃描排程控制 UI，不在此刷新
       if (isAnimatingRadar) return;
 
-      // 如果還沒辨識到卡牌，隱藏按鈕
       if (!isTargetTracked) {
-        statusText.innerText = "Searching....";
-        statusText.style.color = "#34d399";
         scanBtn.style.display = 'none';
         return;
       }
 
-      // 找到了錨點，顯示圖釘並隱藏 SCAN 鈕
       if (isRadarActive) {
-        statusText.innerText = "🎯 TARGET DETECTED"; 
-        statusText.style.color = "#34d399";
         scanBtn.style.display = 'none';
         targetMarker.setAttribute('visible', 'true');
-        if (!blinkInterval) startRadarBlinkingEffect();
+        if (!blinkInterval) startDotBlinkingEffect(); // 啟動圓點規律閃爍
         return;
       }
 
       targetMarker.setAttribute('visible', 'false');
       if (blinkInterval) { clearInterval(blinkInterval); blinkInterval = null; }
 
-      // 雷達尚未被激活前的按鈕邏輯
       if (myRole === 'magician') {
         if (magicData && magicData.status === "locked") {
           scanBtn.style.display = 'flex';
-          if (!isHolding) {
-            statusText.innerText = "Press SCAN to find your card";
-            statusText.style.color = "#34d399";
-          }
         } else {
-          scanBtn.style.display = 'none'; // 未釘錨點前，隱藏按鈕
-          statusText.innerText = "🤖 Ready (Tap bottom-right to set anchor)";
-          statusText.style.color = "#6ee7b7";
+          scanBtn.style.display = 'none';
         }
       } else {
-        // 觀眾端一開始就有 SCAN 按鈕
         scanBtn.style.display = 'flex';
-        if (!isHolding && statusText.innerText !== "Signal weak, please SCAN again...") {
-          statusText.innerText = "Press SCAN to find your card";
-          statusText.style.color = "#34d399";
-        }
       }
     }
 
-    // 將相對空間座標套用給圖釘
+    // 套用相對座標
     function applyPhysicalCoordinates() {
       if (!magicData || magicData.status !== "locked") return;
       targetMarker.setAttribute('position', `${magicData.physX} ${magicData.physY} 0`);
@@ -239,16 +209,13 @@
       }
     });
 
-    // 3. 🌀 核心流程修改：按下 SCAN 2 秒蓄力後，啟動雷達波紋掃瞄動畫
+    // 按下 SCAN 2 秒蓄力
     function startScan(e) {
       if (e.cancelable) e.preventDefault();
       if (!isTargetTracked || isRadarActive || isAnimatingRadar) return;
 
       isHolding = true;
-      statusText.innerText = "Linking Space... Hold 2s";
-      statusText.style.color = "#facc15";
 
-      // 蓄力 2 秒階段
       holdTimer = setTimeout(() => {
         startRadarAnimation();
       }, 2000); 
@@ -263,22 +230,18 @@
       }
     }
 
-    // 正式啟動雷達掃描波紋動畫
+    // 啟動雷達動畫
     function startRadarAnimation() {
       isHolding = false;
       holdTimer = null;
       isAnimatingRadar = true;
 
-      // 隱藏 SCAN 鍵，開啟綠色錐形雷達掃描畫面
       scanBtn.style.display = 'none';
       radarContainer.style.display = 'block';
       radarSweep.style.opacity = '1';
-      statusText.innerText = "⚡ RADAR SCANNING ACTIVE...";
-      statusText.style.color = "#34d399";
       
       if (navigator.vibrate) navigator.vibrate(120);
 
-      // 雷達掃描動畫持續跑 2 秒，隨後收網檢查
       radarAnimationTimer = setTimeout(() => {
         executeScanSuccess();
       }, 2000);
@@ -295,31 +258,26 @@
     function executeScanSuccess() {
       stopRadarAnimation();
 
-      // 檢查魔術師是否已就緒
       if (magicData && magicData.status === "locked") {
         isRadarActive = true; 
         applyPhysicalCoordinates(); 
-        updateUIState(); // 這時才會把圖釘轉為 visible = true
+        updateUIState(); 
         if(navigator.vibrate) navigator.vibrate([100, 50, 100]);
       } else {
-        // 未就緒則回報訊號微弱
-        statusText.innerText = "Signal weak, please SCAN again...";
-        statusText.style.color = "#ef4444"; 
         updateUIState();
       }
     }
 
-    // 圖釘科技感閃爍特效
-    function startRadarBlinkingEffect() {
+    // 🟢 核心修改：圓點高頻規律閃爍特效（每 350 毫秒切換一次，極具雷達偵測感）
+    function startDotBlinkingEffect() {
       if (blinkInterval) clearInterval(blinkInterval);
       
+      let isDotVisible = true;
       blinkInterval = setInterval(() => {
         if (!isTargetTracked) return;
-        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 0);
-        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 120);
-        setTimeout(() => targetMarker.setAttribute('visible', 'false'), 240);
-        setTimeout(() => targetMarker.setAttribute('visible', 'true'), 360);
-      }, 1500);
+        isDotVisible = !isDotVisible;
+        targetMarker.setAttribute('visible', isDotVisible ? 'true' : 'false');
+      }, 350);
     }
 
     // 事件綁定
